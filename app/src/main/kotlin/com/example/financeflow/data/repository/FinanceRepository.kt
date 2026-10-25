@@ -52,44 +52,105 @@ class FinanceRepository private constructor(private val context: Context) {
     private val _notificationLogs = MutableStateFlow<List<NotificationLog>>(emptyList())
     val notificationLogs: StateFlow<List<NotificationLog>> = _notificationLogs.asStateFlow()
 
+    private val repoPrefs = context.getSharedPreferences("finance0_repo_prefs", Context.MODE_PRIVATE)
+    private val PREF_HAS_INITIALIZED = "has_initialized_seed_data"
+
     init {
         loadData()
     }
 
     private fun loadData() {
-        try {
-            if (accountsFile.exists()) {
-                _accounts.value = json.decodeFromString(accountsFile.readText())
+        if (accountsFile.exists()) {
+            try {
+                val content = accountsFile.readText()
+                if (content.isNotBlank()) {
+                    _accounts.value = json.decodeFromString(content)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
-            if (transactionsFile.exists()) {
-                _transactions.value = json.decodeFromString(transactionsFile.readText())
+        }
+        if (transactionsFile.exists()) {
+            try {
+                val content = transactionsFile.readText()
+                if (content.isNotBlank()) {
+                    _transactions.value = json.decodeFromString(content)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
-            if (creditCardsFile.exists()) {
-                _creditCards.value = json.decodeFromString(creditCardsFile.readText())
+        }
+        if (creditCardsFile.exists()) {
+            try {
+                val content = creditCardsFile.readText()
+                if (content.isNotBlank()) {
+                    _creditCards.value = json.decodeFromString(content)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
-            if (billsFile.exists()) {
-                _billReminders.value = json.decodeFromString(billsFile.readText())
+        }
+        if (billsFile.exists()) {
+            try {
+                val content = billsFile.readText()
+                if (content.isNotBlank()) {
+                    _billReminders.value = json.decodeFromString(content)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
-            if (payrollFile.exists()) {
-                _payrollConfig.value = json.decodeFromString(payrollFile.readText())
+        }
+        if (payrollFile.exists()) {
+            try {
+                val content = payrollFile.readText()
+                if (content.isNotBlank()) {
+                    _payrollConfig.value = json.decodeFromString(content)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
-            if (notificationLogsFile.exists()) {
-                _notificationLogs.value = json.decodeFromString(notificationLogsFile.readText())
+        }
+        if (notificationLogsFile.exists()) {
+            try {
+                val content = notificationLogsFile.readText()
+                if (content.isNotBlank()) {
+                    _notificationLogs.value = json.decodeFromString(content)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
-            if (installmentPurchasesFile.exists()) {
-                _installmentPurchases.value = json.decodeFromString(installmentPurchasesFile.readText())
+        }
+        if (installmentPurchasesFile.exists()) {
+            try {
+                val content = installmentPurchasesFile.readText()
+                if (content.isNotBlank()) {
+                    _installmentPurchases.value = json.decodeFromString(content)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
-            if (receivablesFile.exists()) {
-                _receivables.value = json.decodeFromString(receivablesFile.readText())
+        }
+        if (receivablesFile.exists()) {
+            try {
+                val content = receivablesFile.readText()
+                if (content.isNotBlank()) {
+                    _receivables.value = json.decodeFromString(content)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
+        }
 
-            // Si está vacío, sembrar datos de ejemplo completos y realistas de México
-            if (_accounts.value.isEmpty()) {
-                seedInitialData()
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
+        // Sembrar datos de ejemplo ÚNICAMENTE la primera vez que se abre la app en limpio.
+        // NUNCA sobreescribir datos del usuario ni sembrar al actualizar versión.
+        val hasSeededBefore = repoPrefs.getBoolean(PREF_HAS_INITIALIZED, false)
+        val hasExistingFiles = accountsFile.exists() || transactionsFile.exists() || creditCardsFile.exists()
+
+        if (!hasSeededBefore && !hasExistingFiles) {
             seedInitialData()
+            repoPrefs.edit().putBoolean(PREF_HAS_INITIALIZED, true).apply()
+        } else if (!hasSeededBefore) {
+            repoPrefs.edit().putBoolean(PREF_HAS_INITIALIZED, true).apply()
         }
     }
 

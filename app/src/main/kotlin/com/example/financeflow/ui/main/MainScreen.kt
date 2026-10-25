@@ -216,20 +216,6 @@ fun MainScreen(
                 tonalElevation = 8.dp
             ) {
                 NavigationBarItem(
-                    selected = currentTab == AppTab.RESUMEN,
-                    onClick = { currentTab = AppTab.RESUMEN },
-                    icon = { Icon(Icons.Default.Dashboard, contentDescription = "Resumen") },
-                    label = { Text("Resumen", fontSize = 10.sp) },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = AccentNeon,
-                        selectedTextColor = AccentNeon,
-                        indicatorColor = AccentNeon.copy(alpha = 0.15f),
-                        unselectedIconColor = TextSecondary,
-                        unselectedTextColor = TextSecondary
-                    )
-                )
-
-                NavigationBarItem(
                     selected = currentTab == AppTab.CUENTAS,
                     onClick = { currentTab = AppTab.CUENTAS },
                     icon = { Icon(Icons.Default.AccountBalance, contentDescription = "Cuentas") },
@@ -252,6 +238,20 @@ fun MainScreen(
                         selectedIconColor = AccentSecondary,
                         selectedTextColor = AccentSecondary,
                         indicatorColor = AccentSecondary.copy(alpha = 0.15f),
+                        unselectedIconColor = TextSecondary,
+                        unselectedTextColor = TextSecondary
+                    )
+                )
+
+                NavigationBarItem(
+                    selected = currentTab == AppTab.RESUMEN,
+                    onClick = { currentTab = AppTab.RESUMEN },
+                    icon = { Icon(Icons.Default.Dashboard, contentDescription = "Resumen") },
+                    label = { Text("Resumen", fontSize = 10.sp) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = AccentNeon,
+                        selectedTextColor = AccentNeon,
+                        indicatorColor = AccentNeon.copy(alpha = 0.15f),
                         unselectedIconColor = TextSecondary,
                         unselectedTextColor = TextSecondary
                     )

@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Finance0</string>
+    <string name="notification_service_name">Lector de Notificaciones Bancarias Finance0</string>
+</resources>

@@ -26,6 +26,7 @@ class FinanceRepository private constructor(private val context: Context) {
     private val payrollFile get() = File(context.filesDir, "ff_payroll.json")
     private val notificationLogsFile get() = File(context.filesDir, "ff_notification_logs.json")
     private val installmentPurchasesFile get() = File(context.filesDir, "ff_installments.json")
+    private val receivablesFile get() = File(context.filesDir, "ff_receivables.json")
 
     private val _accounts = MutableStateFlow<List<Account>>(emptyList())
     val accounts: StateFlow<List<Account>> = _accounts.asStateFlow()
@@ -44,6 +45,9 @@ class FinanceRepository private constructor(private val context: Context) {
 
     private val _payrollConfig = MutableStateFlow(PayrollConfig())
     val payrollConfig: StateFlow<PayrollConfig> = _payrollConfig.asStateFlow()
+
+    private val _receivables = MutableStateFlow<List<AccountReceivable>>(emptyList())
+    val receivables: StateFlow<List<AccountReceivable>> = _receivables.asStateFlow()
 
     private val _notificationLogs = MutableStateFlow<List<NotificationLog>>(emptyList())
     val notificationLogs: StateFlow<List<NotificationLog>> = _notificationLogs.asStateFlow()
@@ -75,6 +79,9 @@ class FinanceRepository private constructor(private val context: Context) {
             if (installmentPurchasesFile.exists()) {
                 _installmentPurchases.value = json.decodeFromString(installmentPurchasesFile.readText())
             }
+            if (receivablesFile.exists()) {
+                _receivables.value = json.decodeFromString(receivablesFile.readText())
+            }
 
             // Si está vacío, sembrar datos de ejemplo completos y realistas de México
             if (_accounts.value.isEmpty()) {
@@ -96,6 +103,7 @@ class FinanceRepository private constructor(private val context: Context) {
                 payrollFile.writeText(json.encodeToString(_payrollConfig.value))
                 notificationLogsFile.writeText(json.encodeToString(_notificationLogs.value))
                 installmentPurchasesFile.writeText(json.encodeToString(_installmentPurchases.value))
+                receivablesFile.writeText(json.encodeToString(_receivables.value))
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -326,6 +334,29 @@ class FinanceRepository private constructor(private val context: Context) {
                 monthlyAmount = 1200.0,
                 purchaseDate = now - (oneDay * 45),
                 note = "6 MSI Aeroméxico"
+            )
+        )
+
+        _receivables.value = listOf(
+            AccountReceivable(
+                id = "rec_1",
+                debtorName = "Carlos Mendoza",
+                concept = "Préstamo personal quincena",
+                amount = 2500.00,
+                dueDayOfMonth = 15,
+                dueDate = now + (oneDay * 6),
+                isCollected = false,
+                note = "Prometió transferir al cobrar su nómina"
+            ),
+            AccountReceivable(
+                id = "rec_2",
+                debtorName = "Freelance Diseño Web",
+                concept = "Anticipo de desarrollo UI",
+                amount = 4800.00,
+                dueDayOfMonth = 28,
+                dueDate = now + (oneDay * 12),
+                isCollected = false,
+                note = "Entrega final pactada fin de mes"
             )
         )
 
@@ -574,6 +605,93 @@ class FinanceRepository private constructor(private val context: Context) {
         saveData()
     }
 
+    // --- Módulo Cuentas por Cobrar (Dinero por recibir en el mes, no disponible en físico) ---
+
+    fun addReceivable(
+        debtorName: String,
+        concept: String,
+        amount: Double,
+        dueDayOfMonth: Int = 1,
+        note: String = ""
+    ) {
+        val newRec = AccountReceivable(
+            id = UUID.randomUUID().toString(),
+            debtorName = debtorName,
+            concept = concept,
+            amount = amount,
+            dueDayOfMonth = dueDayOfMonth,
+            dueDate = System.currentTimeMillis(),
+            isCollected = false,
+            note = note
+        )
+        _receivables.value = _receivables.value + newRec
+        saveData()
+    }
+
+    fun markReceivableAsCollected(receivableId: String, targetAccountId: String) {
+        val target = _receivables.value.find { it.id == receivableId } ?: return
+        val updated = target.copy(
+            isCollected = true,
+            collectedDate = System.currentTimeMillis(),
+            depositAccountId = targetAccountId
+        )
+        _receivables.value = _receivables.value.map { if (it.id == receivableId) updated else it }
+
+        // Al cobrarse en físico, se registra como ingreso en la cuenta receptora seleccionada
+        val acc = _accounts.value.find { it.id == targetAccountId }
+        addTransaction(
+            accountId = targetAccountId,
+            title = "Cobro: ${target.debtorName} (${target.concept})",
+            amount = target.amount,
+            type = TransactionType.INCOME,
+            category = TransactionCategory.OTROS,
+            note = "Cobro registrado de cuenta por cobrar. ${target.note}".trim(),
+            bankName = acc?.bankName
+        )
+        saveData()
+    }
+
+    fun deleteReceivable(receivableId: String) {
+        _receivables.value = _receivables.value.filter { it.id != receivableId }
+        saveData()
+    }
+
+    // --- Módulo Respaldo y Restauración Local ---
+
+    fun createBackupJson(): String {
+        val backup = BackupData(
+            appVersion = "1.2",
+            backupDate = System.currentTimeMillis(),
+            accounts = _accounts.value,
+            transactions = _transactions.value,
+            creditCards = _creditCards.value,
+            installmentPurchases = _installmentPurchases.value,
+            billReminders = _billReminders.value,
+            payrollConfig = _payrollConfig.value,
+            receivables = _receivables.value,
+            notificationLogs = _notificationLogs.value
+        )
+        return json.encodeToString(backup)
+    }
+
+    fun restoreFromBackupJson(jsonString: String): Result<String> {
+        return try {
+            val backup = json.decodeFromString<BackupData>(jsonString)
+            _accounts.value = backup.accounts
+            _transactions.value = backup.transactions
+            _creditCards.value = backup.creditCards
+            _installmentPurchases.value = backup.installmentPurchases
+            _billReminders.value = backup.billReminders
+            _payrollConfig.value = backup.payrollConfig
+            _receivables.value = backup.receivables
+            _notificationLogs.value = backup.notificationLogs
+            saveData()
+            Result.success("Respaldo restaurado con éxito: ${backup.accounts.size} cuentas, ${backup.transactions.size} movimientos y ${backup.receivables.size} cuentas por cobrar.")
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     fun executeMasterReset() {
         try {
             if (accountsFile.exists()) accountsFile.delete()
@@ -583,6 +701,7 @@ class FinanceRepository private constructor(private val context: Context) {
             if (payrollFile.exists()) payrollFile.delete()
             if (notificationLogsFile.exists()) notificationLogsFile.delete()
             if (installmentPurchasesFile.exists()) installmentPurchasesFile.delete()
+            if (receivablesFile.exists()) receivablesFile.delete()
 
             _accounts.value = emptyList()
             _transactions.value = emptyList()
@@ -590,6 +709,7 @@ class FinanceRepository private constructor(private val context: Context) {
             _installmentPurchases.value = emptyList()
             _billReminders.value = emptyList()
             _notificationLogs.value = emptyList()
+            _receivables.value = emptyList()
             _payrollConfig.value = PayrollConfig()
 
             saveData()

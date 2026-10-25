@@ -44,16 +44,35 @@ class BankNotificationListenerService : NotificationListenerService() {
     companion object {
         fun isNotificationAccessGranted(context: Context): Boolean {
             val packageName = context.packageName
-            val flat = Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners")
-            if (!flat.isNullOrEmpty()) {
-                val names = flat.split(":")
-                for (name in names) {
-                    val cn = ComponentName.unflattenFromString(name)
-                    if (cn != null && cn.packageName == packageName) {
+            try {
+                // 1. Método oficial recomendado por AndroidX
+                val enabledPackages = androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(context)
+                if (enabledPackages.contains(packageName)) {
+                    return true
+                }
+            } catch (e: Exception) {
+                Log.w("BankNotifyService", "NotificationManagerCompat check failed: ${e.message}")
+            }
+
+            try {
+                // 2. Método de Settings.Secure directo
+                val flat = Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners")
+                if (!flat.isNullOrEmpty()) {
+                    if (flat.contains(packageName)) {
                         return true
                     }
+                    val names = flat.split(":")
+                    for (name in names) {
+                        val cn = ComponentName.unflattenFromString(name)
+                        if (cn != null && cn.packageName == packageName) {
+                            return true
+                        }
+                    }
                 }
+            } catch (e: Exception) {
+                Log.w("BankNotifyService", "Settings.Secure check failed: ${e.message}")
             }
+
             return false
         }
 

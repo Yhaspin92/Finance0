@@ -9,15 +9,17 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.financeflow.domain.model.*
@@ -30,16 +32,28 @@ fun DashboardScreen(
     netWorth: Double,
     monthlyIncome: Double,
     monthlyExpense: Double,
+    liquidPhysicalBalance: Double,
+    pendingReceivablesTotal: Double,
+    projectedMonthlyTotal: Double,
     accounts: List<Account>,
     transactions: List<Transaction>,
     creditCards: List<CreditCard>,
+    receivables: List<AccountReceivable>,
     isNotificationPermissionGranted: Boolean,
+    isBannerDismissed: Boolean,
+    onDismissNotificationBanner: () -> Unit,
     onOpenNotificationSettings: () -> Unit,
+    onAddReceivable: (debtorName: String, concept: String, amount: Double, dueDayOfMonth: Int, note: String) -> Unit,
+    onMarkReceivableCollected: (receivableId: String, targetAccountId: String) -> Unit,
+    onDeleteReceivable: (receivableId: String) -> Unit,
     onQuickActionClick: () -> Unit,
     onNavigateToTransactions: () -> Unit,
     onNavigateToCards: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var showAddReceivableDialog by remember { mutableStateOf(false) }
+    var receivableToCollect by remember { mutableStateOf<AccountReceivable?>(null) }
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -48,13 +62,12 @@ fun DashboardScreen(
         contentPadding = PaddingValues(top = 16.dp, bottom = 90.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Banner de Alerta de Permiso de Notificaciones si no está activo
-        if (!isNotificationPermissionGranted) {
+        // Banner de Alerta de Permiso de Notificaciones si no está activo y no ha sido descartado
+        if (!isNotificationPermissionGranted && !isBannerDismissed) {
             item {
                 GlassCard(
                     accentGlow = FintechWarning,
-                    borderColor = FintechWarning.copy(alpha = 0.5f),
-                    onClick = onOpenNotificationSettings
+                    borderColor = FintechWarning.copy(alpha = 0.5f)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -63,7 +76,9 @@ fun DashboardScreen(
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { onOpenNotificationSettings() }
                         ) {
                             Box(
                                 modifier = Modifier
@@ -81,23 +96,30 @@ fun DashboardScreen(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = "Lectura de Notificaciones Inactiva",
+                                    text = "Lectura de Notificaciones",
                                     fontWeight = FontWeight.Bold,
                                     color = TextPrimary,
                                     fontSize = 14.sp
                                 )
                                 Text(
-                                    text = "Toca aquí para autorizar la lectura de bancos",
+                                    text = "Toca para autorizar el lector bancario",
                                     color = TextSecondary,
                                     fontSize = 12.sp
                                 )
                             }
                         }
-                        Icon(
-                            Icons.Default.ChevronRight,
-                            contentDescription = "Abrir",
-                            tint = FintechWarning
-                        )
+
+                        IconButton(
+                            onClick = onDismissNotificationBanner,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Cerrar banner",
+                                tint = TextSecondary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -106,8 +128,8 @@ fun DashboardScreen(
         // Tarjeta Principal: Patrimonio Neto
         item {
             GlassCard(
-                accentGlow = NeonEmerald,
-                borderColor = NeonEmerald.copy(alpha = 0.35f)
+                accentGlow = AccentNeon,
+                borderColor = AccentNeon.copy(alpha = 0.35f)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -123,14 +145,14 @@ fun DashboardScreen(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
-                            .background(NeonEmerald.copy(alpha = 0.15f))
+                            .background(AccentNeon.copy(alpha = 0.15f))
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(
                             text = "ACTUALIZADO",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
-                            color = NeonEmerald
+                            color = AccentNeon
                         )
                     }
                 }
@@ -212,6 +234,283 @@ fun DashboardScreen(
             }
         }
 
+        // Tarjeta de Proyección del Mes: Dinero en Físico vs Cuentas por Cobrar
+        item {
+            GlassCard(
+                accentGlow = AccentSecondary,
+                borderColor = AccentSecondary.copy(alpha = 0.3f),
+                shapeRadius = 18.dp
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "Total Proyectado del Mes",
+                            fontSize = 13.sp,
+                            color = TextSecondary,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = Formatters.formatCurrency(projectedMonthlyTotal),
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = AccentSecondary
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(AccentSecondary.copy(alpha = 0.15f))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "PROYECCIÓN MENSUAL",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = AccentSecondary
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Dinero disponible en físico
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(FintechSurface)
+                            .padding(10.dp)
+                    ) {
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(NeonEmerald)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Dinero en Físico", fontSize = 11.sp, color = TextSecondary)
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = Formatters.formatCurrency(liquidPhysicalBalance),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = NeonEmerald
+                            )
+                            Text("En débito y efectivo", fontSize = 9.sp, color = TextMuted)
+                        }
+                    }
+
+                    // Por cobrar (No en físico aún)
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(FintechSurface)
+                            .padding(10.dp)
+                    ) {
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(FintechWarning)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Por Cobrar", fontSize = 11.sp, color = TextSecondary)
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = Formatters.formatCurrency(pendingReceivablesTotal),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = FintechWarning
+                            )
+                            Text("No físico todavía", fontSize = 9.sp, color = FintechWarning.copy(alpha = 0.8f))
+                        }
+                    }
+                }
+            }
+        }
+
+        // ==========================================
+        // SECCIÓN: CUENTAS POR COBRAR (DINERO POR RECIBIR)
+        // ==========================================
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "📥 Cuentas por Cobrar",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                    Text(
+                        text = "Dinero que te deben (suma al mes, no físico aún)",
+                        fontSize = 12.sp,
+                        color = TextSecondary
+                    )
+                }
+
+                FilledTonalButton(
+                    onClick = { showAddReceivableDialog = true },
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = AccentNeon.copy(alpha = 0.15f),
+                        contentColor = AccentNeon
+                    ),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Agregar", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        if (receivables.isEmpty()) {
+            item {
+                GlassCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    shapeRadius = 14.dp
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(TextMuted.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("🤝", fontSize = 16.sp)
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text("Sin cuentas por cobrar pendientes", fontWeight = FontWeight.SemiBold, color = TextPrimary, fontSize = 13.sp)
+                            Text("Toca en 'Agregar' para registrar préstamos o cobros previstos", color = TextSecondary, fontSize = 11.sp)
+                        }
+                    }
+                }
+            }
+        } else {
+            items(receivables) { rec ->
+                val isDone = rec.isCollected
+                GlassCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    borderColor = if (isDone) FintechBorder else FintechWarning.copy(alpha = 0.35f),
+                    shapeRadius = 14.dp
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isDone) NeonEmerald.copy(alpha = 0.15f) else FintechWarning.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    if (isDone) Icons.Default.CheckCircle else Icons.Default.PendingActions,
+                                    contentDescription = null,
+                                    tint = if (isDone) NeonEmerald else FintechWarning,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = rec.debtorName,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary,
+                                    fontSize = 14.sp
+                                )
+                                Text(
+                                    text = "${rec.concept} • Día previsto: ${rec.dueDayOfMonth}",
+                                    color = TextSecondary,
+                                    fontSize = 11.sp
+                                )
+                                if (!isDone) {
+                                    Text(
+                                        text = "⚠️ No en físico todavía",
+                                        color = FintechWarning,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                } else {
+                                    Text(
+                                        text = "✅ Cobrado en físico",
+                                        color = NeonEmerald,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
+
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                text = Formatters.formatCurrency(rec.amount),
+                                fontWeight = FontWeight.Bold,
+                                color = if (isDone) NeonEmerald else AccentNeon,
+                                fontSize = 15.sp
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (!isDone) {
+                                    Button(
+                                        onClick = { receivableToCollect = rec },
+                                        shape = RoundedCornerShape(8.dp),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = NeonEmerald),
+                                        modifier = Modifier.height(26.dp)
+                                    ) {
+                                        Text("Cobrar", fontSize = 11.sp, color = FintechBackground, fontWeight = FontWeight.Bold)
+                                    }
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                }
+                                IconButton(
+                                    onClick = { onDeleteReceivable(rec.id) },
+                                    modifier = Modifier.size(26.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        contentDescription = "Eliminar",
+                                        tint = TextMuted,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Botón de Acción Rápida Principal
         item {
             Button(
@@ -220,7 +519,7 @@ fun DashboardScreen(
                     .fillMaxWidth()
                     .height(52.dp),
                 shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = NeonEmerald)
+                colors = ButtonDefaults.buttonColors(containerColor = AccentNeon)
             ) {
                 Icon(
                     Icons.Default.Add,
@@ -254,7 +553,7 @@ fun DashboardScreen(
                 Text(
                     text = "Ver tarjetas",
                     fontSize = 13.sp,
-                    color = NeonCyan,
+                    color = AccentSecondary,
                     modifier = Modifier.clickable { onNavigateToCards() }
                 )
             }
@@ -269,7 +568,7 @@ fun DashboardScreen(
             ) {
                 accounts.forEach { acc ->
                     val isCredit = acc.type == AccountType.CREDIT
-                    val cardGlow = if (isCredit) NeonViolet else NeonEmerald
+                    val cardGlow = if (isCredit) NeonViolet else AccentNeon
 
                     GlassCard(
                         modifier = Modifier.width(170.dp),
@@ -298,16 +597,9 @@ fun DashboardScreen(
                         Text(
                             text = Formatters.formatCurrency(acc.balance),
                             fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.ExtraBold,
                             color = TextPrimary
                         )
-                        if (acc.last4Digits.isNotBlank()) {
-                            Text(
-                                text = "•••• ${acc.last4Digits}",
-                                fontSize = 10.sp,
-                                color = TextMuted
-                            )
-                        }
                     }
                 }
             }
@@ -327,26 +619,27 @@ fun DashboardScreen(
                     color = TextPrimary
                 )
                 Text(
-                    text = "Ver todos",
+                    text = "Ver todos (${transactions.size})",
                     fontSize = 13.sp,
-                    color = NeonEmerald,
+                    color = AccentSecondary,
                     modifier = Modifier.clickable { onNavigateToTransactions() }
                 )
             }
         }
 
-        val recentTx = transactions.take(6)
-        if (recentTx.isEmpty()) {
+        val recentTransactions = transactions.take(5)
+        if (recentTransactions.isEmpty()) {
             item {
-                Text(
-                    text = "No hay transacciones registradas aún.",
-                    color = TextMuted,
-                    fontSize = 13.sp,
-                    modifier = Modifier.padding(vertical = 12.dp)
-                )
+                GlassCard(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "No hay movimientos registrados.",
+                        color = TextMuted,
+                        fontSize = 13.sp
+                    )
+                }
             }
         } else {
-            items(recentTx) { tx ->
+            items(recentTransactions) { tx ->
                 val isIncome = tx.type == TransactionType.INCOME
                 val amountColor = if (isIncome) FintechIncome else TextPrimary
                 val prefix = if (isIncome) "+" else "-"
@@ -416,7 +709,7 @@ fun DashboardScreen(
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
                                             text = "• 🤖 Notificación",
-                                            color = NeonCyan,
+                                            color = AccentSecondary,
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.Medium
                                         )
@@ -435,5 +728,152 @@ fun DashboardScreen(
                 }
             }
         }
+    }
+
+    // Modal: Agregar Cuenta por Cobrar
+    if (showAddReceivableDialog) {
+        var debtorName by remember { mutableStateOf("") }
+        var concept by remember { mutableStateOf("") }
+        var amountText by remember { mutableStateOf("") }
+        var dueDayText by remember { mutableStateOf("15") }
+        var note by remember { mutableStateOf("") }
+
+        AlertDialog(
+            onDismissRequest = { showAddReceivableDialog = false },
+            title = {
+                Text("Nueva Cuenta por Cobrar", fontWeight = FontWeight.Bold, color = TextPrimary)
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Registra un préstamo o cobro previsto para este mes. Se sumará a tu proyección mensual, pero no como dinero en físico aún.",
+                        fontSize = 12.sp,
+                        color = TextSecondary
+                    )
+
+                    OutlinedTextField(
+                        value = debtorName,
+                        onValueChange = { debtorName = it },
+                        label = { Text("¿Quién te debe? (Persona o Cliente)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = concept,
+                        onValueChange = { concept = it },
+                        label = { Text("Concepto (ej. Préstamo, Trabajo freelance)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = amountText,
+                        onValueChange = { amountText = it },
+                        label = { Text("Monto por cobrar ($)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = dueDayText,
+                        onValueChange = { dueDayText = it },
+                        label = { Text("Día previsto del mes para cobrar (1-31)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = note,
+                        onValueChange = { note = it },
+                        label = { Text("Nota adicional (opcional)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val amount = amountText.toDoubleOrNull() ?: 0.0
+                        val day = dueDayText.toIntOrNull() ?: 1
+                        if (debtorName.isNotBlank() && amount > 0) {
+                            onAddReceivable(debtorName.trim(), concept.trim(), amount, day, note.trim())
+                            showAddReceivableDialog = false
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentNeon)
+                ) {
+                    Text("Guardar Cuenta", color = Color.Black, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddReceivableDialog = false }) {
+                    Text("Cancelar", color = TextSecondary)
+                }
+            }
+        )
+    }
+
+    // Modal: Marcar como Cobrado en Físico
+    if (receivableToCollect != null) {
+        val rec = receivableToCollect!!
+        val liquidAccounts = accounts.filter { it.type == AccountType.DEBIT || it.type == AccountType.CASH }
+        var selectedAccountId by remember { mutableStateOf(liquidAccounts.firstOrNull()?.id ?: "") }
+
+        AlertDialog(
+            onDismissRequest = { receivableToCollect = null },
+            title = {
+                Text("Confirmar Cobro en Físico", fontWeight = FontWeight.Bold, color = TextPrimary)
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "¿A qué cuenta física ingresó el pago de ${Formatters.formatCurrency(rec.amount)} de ${rec.debtorName}?",
+                        color = TextPrimary,
+                        fontSize = 13.sp
+                    )
+
+                    liquidAccounts.forEach { acc ->
+                        val isSelected = selectedAccountId == acc.id
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (isSelected) AccentNeon.copy(alpha = 0.15f) else FintechSurface)
+                                .clickable { selectedAccountId = acc.id }
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = isSelected,
+                                onClick = { selectedAccountId = acc.id },
+                                colors = RadioButtonDefaults.colors(selectedColor = AccentNeon)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(acc.name, fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 13.sp)
+                                Text("${acc.bankName} • Saldo: ${Formatters.formatCurrency(acc.balance)}", color = TextSecondary, fontSize = 11.sp)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (selectedAccountId.isNotBlank()) {
+                            onMarkReceivableCollected(rec.id, selectedAccountId)
+                            receivableToCollect = null
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = NeonEmerald)
+                ) {
+                    Text("Confirmar Depósito", color = FintechBackground, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { receivableToCollect = null }) {
+                    Text("Cancelar", color = TextSecondary)
+                }
+            }
+        )
     }
 }

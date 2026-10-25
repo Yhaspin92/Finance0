@@ -49,6 +49,8 @@ fun MainScreen(
     var showQuickActionDialog by remember { mutableStateOf(false) }
     var showSettingsScreen by remember { mutableStateOf(false) }
 
+    var showCalculatorDialog by remember { mutableStateOf(false) }
+
     val accounts by viewModel.accounts.collectAsStateWithLifecycle()
     val transactions by viewModel.transactions.collectAsStateWithLifecycle()
     val creditCards by viewModel.creditCards.collectAsStateWithLifecycle()
@@ -56,10 +58,15 @@ fun MainScreen(
     val billReminders by viewModel.billReminders.collectAsStateWithLifecycle()
     val payrollConfig by viewModel.payrollConfig.collectAsStateWithLifecycle()
     val notificationLogs by viewModel.notificationLogs.collectAsStateWithLifecycle()
+    val receivables by viewModel.receivables.collectAsStateWithLifecycle()
     val netWorth by viewModel.netWorth.collectAsStateWithLifecycle()
     val monthlyIncome by viewModel.monthlyIncome.collectAsStateWithLifecycle()
     val monthlyExpense by viewModel.monthlyExpense.collectAsStateWithLifecycle()
+    val liquidPhysicalBalance by viewModel.liquidPhysicalBalance.collectAsStateWithLifecycle()
+    val pendingReceivablesTotal by viewModel.pendingReceivablesTotal.collectAsStateWithLifecycle()
+    val projectedMonthlyTotal by viewModel.projectedMonthlyTotal.collectAsStateWithLifecycle()
     val isNotificationPermissionGranted by viewModel.isNotificationPermissionGranted.collectAsStateWithLifecycle()
+    val isBannerDismissed by viewModel.isBannerDismissed.collectAsStateWithLifecycle()
     val updateState by viewModel.updateState.collectAsStateWithLifecycle()
 
     if (showSettingsScreen) {
@@ -105,7 +112,17 @@ fun MainScreen(
                         }
                     },
                     actions = {
-                        // Botón de Configuración (Temas, OTA, Borrado Maestro)
+                        // Botón de Calculadora Funcional
+                        IconButton(onClick = { showCalculatorDialog = true }) {
+                            Icon(
+                                Icons.Default.Calculate,
+                                contentDescription = "Calculadora Financiera",
+                                tint = AccentNeon,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+
+                        // Botón de Configuración (Temas, OTA, Respaldo, Borrado Maestro)
                         IconButton(onClick = { showSettingsScreen = true }) {
                             Icon(
                                 Icons.Default.Settings,
@@ -238,12 +255,27 @@ fun MainScreen(
                     netWorth = netWorth,
                     monthlyIncome = monthlyIncome,
                     monthlyExpense = monthlyExpense,
+                    liquidPhysicalBalance = liquidPhysicalBalance,
+                    pendingReceivablesTotal = pendingReceivablesTotal,
+                    projectedMonthlyTotal = projectedMonthlyTotal,
                     accounts = accounts,
                     transactions = transactions,
                     creditCards = creditCards,
+                    receivables = receivables,
                     isNotificationPermissionGranted = isNotificationPermissionGranted,
+                    isBannerDismissed = isBannerDismissed,
+                    onDismissNotificationBanner = { viewModel.dismissNotificationBanner() },
                     onOpenNotificationSettings = {
                         BankNotificationListenerService.openNotificationAccessSettings(context)
+                    },
+                    onAddReceivable = { debtor, concept, amount, day, note ->
+                        viewModel.addReceivable(debtor, concept, amount, day, note)
+                    },
+                    onMarkReceivableCollected = { recId, targetAccId ->
+                        viewModel.markReceivableAsCollected(recId, targetAccId)
+                    },
+                    onDeleteReceivable = { recId ->
+                        viewModel.deleteReceivable(recId)
                     },
                     onQuickActionClick = { showQuickActionDialog = true },
                     onNavigateToTransactions = { currentTab = AppTab.MOVIMIENTOS },
@@ -317,6 +349,12 @@ fun MainScreen(
                     note = note
                 )
             }
+        )
+    }
+
+    if (showCalculatorDialog) {
+        com.example.financeflow.ui.components.CalculatorDialog(
+            onDismissRequest = { showCalculatorDialog = false }
         )
     }
     }

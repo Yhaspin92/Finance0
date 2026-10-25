@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.io.File
@@ -30,6 +31,14 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     val billReminders: StateFlow<List<BillReminder>> = repository.billReminders
     val payrollConfig: StateFlow<PayrollConfig> = repository.payrollConfig
     val notificationLogs: StateFlow<List<NotificationLog>> = repository.notificationLogs
+    val receivables: StateFlow<List<AccountReceivable>> = repository.receivables
+
+    private val _isBannerDismissed = MutableStateFlow(false)
+    val isBannerDismissed: StateFlow<Boolean> = _isBannerDismissed.asStateFlow()
+
+    fun dismissNotificationBanner() {
+        _isBannerDismissed.value = true
+    }
 
     private val themePrefs = application.getSharedPreferences("finance0_theme_prefs", android.content.Context.MODE_PRIVATE)
     private val initialTheme = try {
@@ -88,6 +97,21 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             cal.get(Calendar.YEAR) == currentYear &&
             (tx.type == TransactionType.EXPENSE || tx.type == TransactionType.CREDIT_CARD_PAYMENT)
         }.sumOf { it.amount }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    // Dinero en físico disponible (Débito + Efectivo)
+    val liquidPhysicalBalance: StateFlow<Double> = accounts.map { list ->
+        list.filter { it.type == AccountType.DEBIT || it.type == AccountType.CASH }.sumOf { it.balance }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    // Cuentas por cobrar pendientes (Dinero esperado pero no en físico)
+    val pendingReceivablesTotal: StateFlow<Double> = receivables.map { list ->
+        list.filter { !it.isCollected }.sumOf { it.amount }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    // Total Proyectado del Mes: Dinero en físico disponible + Total por cobrar
+    val projectedMonthlyTotal: StateFlow<Double> = liquidPhysicalBalance.combine(pendingReceivablesTotal) { physical, pending ->
+        physical + pending
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     init {
@@ -247,5 +271,33 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         if (!opened) {
             _updateState.value = UpdateState.NeedsInstallPermission(file)
         }
+    }
+
+    // --- Cuentas por Cobrar ---
+    fun addReceivable(
+        debtorName: String,
+        concept: String,
+        amount: Double,
+        dueDayOfMonth: Int,
+        note: String = ""
+    ) {
+        repository.addReceivable(debtorName, concept, amount, dueDayOfMonth, note)
+    }
+
+    fun markReceivableAsCollected(receivableId: String, depositAccountId: String) {
+        repository.markReceivableAsCollected(receivableId, depositAccountId)
+    }
+
+    fun deleteReceivable(receivableId: String) {
+        repository.deleteReceivable(receivableId)
+    }
+
+    // --- Respaldo y Restauración Local ---
+    fun createBackupJson(): String {
+        return repository.createBackupJson()
+    }
+
+    fun restoreBackup(jsonString: String): Result<String> {
+        return repository.restoreFromBackupJson(jsonString)
     }
 }

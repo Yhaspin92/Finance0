@@ -1,5 +1,8 @@
 package com.example.financeflow.ui.settings
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.content.Intent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -17,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -25,6 +29,9 @@ import com.example.financeflow.ui.FinanceViewModel
 import com.example.financeflow.ui.components.GlassCard
 import com.example.financeflow.ui.theme.*
 import kotlinx.coroutines.delay
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun SettingsScreen(
@@ -34,12 +41,49 @@ fun SettingsScreen(
 ) {
     val currentTheme by viewModel.themeMode.collectAsState()
     val updateState by viewModel.updateState.collectAsState()
+    val context = LocalContext.current
 
     var showMasterResetDialog by remember { mutableStateOf(false) }
     var resetSuccessMessage by remember { mutableStateOf(false) }
+    var backupStatusMessage by remember { mutableStateOf<String?>(null) }
 
     var githubRepo by remember { mutableStateOf(viewModel.updateManager.configuredRepo) }
     var githubToken by remember { mutableStateOf(viewModel.updateManager.personalAccessToken) }
+
+    val createDocLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            try {
+                context.contentResolver.openOutputStream(uri)?.use { os ->
+                    os.write(viewModel.createBackupJson().toByteArray(Charsets.UTF_8))
+                }
+                backupStatusMessage = "✅ Copia de seguridad guardada con éxito en el archivo."
+            } catch (e: Exception) {
+                backupStatusMessage = "❌ Error al guardar archivo de respaldo: ${e.message}"
+            }
+        }
+    }
+
+    val openDocLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            try {
+                val jsonString = context.contentResolver.openInputStream(uri)?.use {
+                    it.bufferedReader().readText()
+                } ?: ""
+                val res = viewModel.restoreBackup(jsonString)
+                if (res.isSuccess) {
+                    backupStatusMessage = "✅ ${res.getOrNull()}"
+                } else {
+                    backupStatusMessage = "❌ Archivo de respaldo incompatible o dañado."
+                }
+            } catch (e: Exception) {
+                backupStatusMessage = "❌ Error al leer archivo: ${e.message}"
+            }
+        }
+    }
 
     LazyColumn(
         modifier = modifier
@@ -338,7 +382,134 @@ fun SettingsScreen(
         }
 
         // ==========================================
-        // 3. SECCIÓN DE BORRADO MAESTRO DE DATOS
+        // 3. SECCIÓN DE RESPALDO Y RESTAURACIÓN LOCAL
+        // ==========================================
+        item {
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "💾 Respaldo y Restauración Local",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
+            Text(
+                text = "Exporta o restaura tus cuentas, movimientos, tarjetas, MSI y cuentas por cobrar en archivo JSON",
+                fontSize = 12.sp,
+                color = TextSecondary
+            )
+        }
+
+        item {
+            GlassCard(
+                borderColor = AccentNeon.copy(alpha = 0.4f),
+                accentGlow = AccentNeon,
+                shapeRadius = 18.dp
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(AccentNeon.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Save, contentDescription = "Respaldo", tint = AccentNeon)
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Copias de Seguridad Offline",
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary,
+                            fontSize = 15.sp
+                        )
+                        Text(
+                            text = "No requiere internet. Puedes guardarlo en tus descargas o compartirlo a Google Drive.",
+                            color = TextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Botón Guardar Archivo
+                    Button(
+                        onClick = {
+                            val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+                            createDocLauncher.launch("Finance0_Backup_$timeStamp.json")
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentNeon)
+                    ) {
+                        Icon(Icons.Default.Download, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Exportar", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+
+                    // Botón Compartir / Enviar
+                    OutlinedButton(
+                        onClick = {
+                            try {
+                                val jsonContent = viewModel.createBackupJson()
+                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_SUBJECT, "Copia de Seguridad Finance0")
+                                    putExtra(Intent.EXTRA_TEXT, jsonContent)
+                                }
+                                context.startActivity(Intent.createChooser(shareIntent, "Compartir Copia de Seguridad"))
+                            } catch (e: Exception) {
+                                backupStatusMessage = "❌ Error al compartir: ${e.message}"
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, AccentSecondary)
+                    ) {
+                        Icon(Icons.Default.Share, contentDescription = null, tint = AccentSecondary, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Compartir", color = AccentSecondary, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Botón Restaurar Archivo
+                OutlinedButton(
+                    onClick = {
+                        openDocLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, FintechBorder)
+                ) {
+                    Icon(Icons.Default.UploadFile, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Restaurar desde archivo JSON", color = TextPrimary, fontWeight = FontWeight.Medium, fontSize = 12.sp)
+                }
+
+                if (backupStatusMessage != null) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = backupStatusMessage!!,
+                        color = if (backupStatusMessage!!.startsWith("✅")) NeonEmerald else FintechExpense,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        }
+
+        // ==========================================
+        // 4. SECCIÓN DE BORRADO MAESTRO DE DATOS
         // ==========================================
         item {
             Spacer(modifier = Modifier.height(10.dp))

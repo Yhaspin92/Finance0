@@ -133,3 +133,34 @@ data class NotificationLog(
     val detectedAccountLast4: String? = null,
     val failureReason: String? = null
 )
+
+// Modelo para Cuentas por Cobrar (Dinero por recibir en el mes, no disponible en físico aún)
+@Serializable
+data class AccountReceivable(
+    val id: String,
+    val debtorName: String,
+    val concept: String,
+    val amount: Double,
+    val dueDayOfMonth: Int = 1,
+    val dueDate: Long = System.currentTimeMillis(),
+    val isCollected: Boolean = false,
+    val collectedDate: Long? = null,
+    val depositAccountId: String? = null,
+    val note: String = ""
+)
+
+// Modelo unificado de Copia de Seguridad Local
+@Serializable
+data class BackupData(
+    val appVersion: String = "1.2",
+    val backupDate: Long = System.currentTimeMillis(),
+    val accounts: List<Account> = emptyList(),
+    val transactions: List<Transaction> = emptyList(),
+    val creditCards: List<CreditCard> = emptyList(),
+    val installmentPurchases: List<InstallmentPurchase> = emptyList(),
+    val billReminders: List<BillReminder> = emptyList(),
+    val payrollConfig: PayrollConfig = PayrollConfig(),
+    val receivables: List<AccountReceivable> = emptyList(),
+    val notificationLogs: List<NotificationLog> = emptyList()
+)
+

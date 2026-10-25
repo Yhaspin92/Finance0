@@ -56,6 +56,10 @@ var NeonViolet = EmeraldSecondary
 var NeonVioletGlow = EmeraldSecondaryGlow
 var NeonCyan = EmeraldAccent
 
+val AccentNeon: Color get() = NeonEmerald
+val AccentSecondary: Color get() = NeonViolet
+val FintechBorder: Color get() = FintechCardBorder
+
 // Semántica financiera
 val FintechIncome = Color(0xFF00E676)
 val FintechExpense = Color(0xFFFF5252)

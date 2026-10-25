@@ -317,6 +317,7 @@ fun MainScreen(
     // Modal de Actualizaciones OTA vía GitHub
     if (showUpdateDialog) {
         var githubRepo by remember { mutableStateOf(viewModel.updateManager.configuredRepo) }
+        var githubToken by remember { mutableStateOf(viewModel.updateManager.personalAccessToken) }
 
         AlertDialog(
             onDismissRequest = { showUpdateDialog = false },
@@ -354,6 +355,24 @@ fun MainScreen(
                         },
                         singleLine = true,
                         placeholder = { Text("usuario/Finance0") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = "GitHub Token (Opcional, solo si el repo es privado):",
+                        fontSize = 11.sp,
+                        color = TextMuted
+                    )
+                    OutlinedTextField(
+                        value = githubToken,
+                        onValueChange = {
+                            githubToken = it
+                            viewModel.updateManager.personalAccessToken = it
+                        },
+                        singleLine = true,
+                        placeholder = { Text("ghp_xxxx...") },
                         modifier = Modifier.fillMaxWidth()
                     )
 
@@ -403,7 +422,7 @@ fun MainScreen(
                                 Spacer(modifier = Modifier.height(6.dp))
                                 if (state.release.apkDownloadUrl != null) {
                                     Button(
-                                        onClick = { viewModel.downloadAndInstallApk(state.release.apkDownloadUrl) },
+                                        onClick = { viewModel.downloadAndInstallApk(state.release.apkDownloadUrl, githubToken) },
                                         colors = ButtonDefaults.buttonColors(containerColor = NeonEmerald)
                                     ) {
                                         Icon(Icons.Default.Download, contentDescription = "Descargar", modifier = Modifier.size(16.dp))
@@ -441,7 +460,24 @@ fun MainScreen(
                                 onClick = { viewModel.promptInstallApk(state.apkFile) },
                                 colors = ButtonDefaults.buttonColors(containerColor = NeonEmerald)
                             ) {
-                                Text("Reintentar Instalación", color = FintechBackground, fontWeight = FontWeight.Bold)
+                                Text("Instalar APK", color = FintechBackground, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        is UpdateState.NeedsInstallPermission -> {
+                            Column {
+                                Text(
+                                    text = "⚠️ Se requiere autorizar la instalación de fuentes desconocidas en Android.",
+                                    fontSize = 12.sp,
+                                    color = FintechWarning,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Button(
+                                    onClick = { viewModel.promptInstallApk(state.apkFile) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = NeonEmerald)
+                                ) {
+                                    Text("Autorizar e Instalar", color = FintechBackground, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                         is UpdateState.Error -> {
@@ -456,7 +492,7 @@ fun MainScreen(
             },
             confirmButton = {
                 Button(
-                    onClick = { viewModel.checkForUpdates(githubRepo) },
+                    onClick = { viewModel.checkForUpdates(githubRepo, githubToken) },
                     colors = ButtonDefaults.buttonColors(containerColor = NeonCyan)
                 ) {
                     Text("Comprobar Ahora", color = FintechBackground, fontWeight = FontWeight.Bold)

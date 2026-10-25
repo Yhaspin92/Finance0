@@ -190,30 +190,42 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
 
     // OTA Updater vía GitHub
-    fun checkForUpdates(repo: String = updateManager.configuredRepo) {
+    fun checkForUpdates(
+        repo: String = updateManager.configuredRepo,
+        token: String = updateManager.personalAccessToken
+    ) {
         viewModelScope.launch {
             _updateState.value = UpdateState.Checking
-            val result = updateManager.checkForUpdates(repo)
+            val result = updateManager.checkForUpdates(repo, token)
             _updateState.value = result
         }
     }
 
-    fun downloadAndInstallApk(downloadUrl: String) {
+    fun downloadAndInstallApk(
+        downloadUrl: String,
+        token: String = updateManager.personalAccessToken
+    ) {
         viewModelScope.launch {
             _updateState.value = UpdateState.Downloading(0)
-            val file = updateManager.downloadAndInstallApk(downloadUrl) { progress ->
+            val file = updateManager.downloadAndInstallApk(downloadUrl, token) { progress ->
                 _updateState.value = UpdateState.Downloading(progress)
             }
             if (file != null) {
                 _updateState.value = UpdateState.ReadyToInstall(file)
-                updateManager.promptInstall(file)
+                val opened = updateManager.promptInstall(file)
+                if (!opened) {
+                    _updateState.value = UpdateState.NeedsInstallPermission(file)
+                }
             } else {
-                _updateState.value = UpdateState.Error("Error al descargar el archivo APK.")
+                _updateState.value = UpdateState.Error("Error al descargar el archivo APK desde GitHub.")
             }
         }
     }
 
     fun promptInstallApk(file: File) {
-        updateManager.promptInstall(file)
+        val opened = updateManager.promptInstall(file)
+        if (!opened) {
+            _updateState.value = UpdateState.NeedsInstallPermission(file)
+        }
     }
 }

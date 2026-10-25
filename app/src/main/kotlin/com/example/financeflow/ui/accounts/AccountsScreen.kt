@@ -36,6 +36,8 @@ fun AccountsScreen(
     creditCards: List<CreditCard>,
     transactions: List<Transaction>,
     onAddAccount: (name: String, bankName: String, type: AccountType, balance: Double, last4: String, colorHex: String, investment: Double, yield: Double) -> Unit,
+    onUpdateAccount: (accountId: String, name: String, bankName: String, type: AccountType, balance: Double, last4: String, colorHex: String, investment: Double, yield: Double) -> Unit = { _, _, _, _, _, _, _, _, _ -> },
+    onDeleteAccount: (accountId: String) -> Unit = {},
     onAddPocket: (accountId: String, name: String, amount: Double, target: Double) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -310,16 +312,25 @@ fun AccountsScreen(
 
     // Modal de Detalle de Cuenta Bancaria
     if (selectedAccountForDetail != null) {
-        val acc = accounts.find { it.id == selectedAccountForDetail!!.id } ?: selectedAccountForDetail!!
-        AccountDetailModal(
-            account = acc,
-            linkedCards = creditCards.filter { it.accountId == acc.id },
-            transactions = transactions.filter { it.accountId == acc.id },
-            onDismiss = { selectedAccountForDetail = null },
-            onAddPocket = { name, amount, target ->
-                onAddPocket(acc.id, name, amount, target)
-            }
-        )
+        val acc = accounts.find { it.id == selectedAccountForDetail!!.id }
+        if (acc != null) {
+            AccountDetailModal(
+                account = acc,
+                linkedCards = creditCards.filter { it.accountId == acc.id },
+                transactions = transactions.filter { it.accountId == acc.id },
+                onDismiss = { selectedAccountForDetail = null },
+                onAddPocket = { name, amount, target ->
+                    onAddPocket(acc.id, name, amount, target)
+                },
+                onUpdateAccount = onUpdateAccount,
+                onDeleteAccount = {
+                    onDeleteAccount(acc.id)
+                    selectedAccountForDetail = null
+                }
+            )
+        } else {
+            selectedAccountForDetail = null
+        }
     }
 
     // Modal para Añadir Cuenta Bancaria
@@ -340,9 +351,13 @@ fun AccountDetailModal(
     linkedCards: List<CreditCard>,
     transactions: List<Transaction>,
     onDismiss: () -> Unit,
-    onAddPocket: (name: String, amount: Double, target: Double) -> Unit
+    onAddPocket: (name: String, amount: Double, target: Double) -> Unit,
+    onUpdateAccount: (accountId: String, name: String, bankName: String, type: AccountType, balance: Double, last4: String, colorHex: String, investment: Double, yield: Double) -> Unit,
+    onDeleteAccount: () -> Unit
 ) {
     var showCreatePocketDialog by remember { mutableStateOf(false) }
+    var showEditDialog by remember { mutableStateOf(false) }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -371,13 +386,21 @@ fun AccountDetailModal(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(account.name, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                         Text("${account.bankName} • Saldo: ${Formatters.formatCurrency(account.balance)}", fontSize = 13.sp, color = AccentNeon, fontWeight = FontWeight.SemiBold)
                     }
 
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = TextSecondary)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { showEditDialog = true }) {
+                            Icon(Icons.Default.Edit, contentDescription = "Editar Cuenta", tint = AccentNeon)
+                        }
+                        IconButton(onClick = { showDeleteConfirmDialog = true }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Eliminar Cuenta", tint = FintechExpense)
+                        }
+                        IconButton(onClick = onDismiss) {
+                            Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = TextSecondary)
+                        }
                     }
                 }
 
@@ -589,6 +612,47 @@ fun AccountDetailModal(
             }
         )
     }
+
+    if (showDeleteConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmDialog = false },
+            title = { Text("¿Eliminar cuenta bancaria?", fontWeight = FontWeight.Bold, color = FintechExpense) },
+            text = {
+                Text(
+                    "¿Estás seguro de que deseas eliminar la cuenta '${account.name}' (${account.bankName})? Se desvincularán las tarjetas asociadas.",
+                    color = TextPrimary,
+                    fontSize = 13.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteConfirmDialog = false
+                        onDeleteAccount()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = FintechExpense)
+                ) {
+                    Text("Eliminar", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmDialog = false }) {
+                    Text("Cancelar", color = TextSecondary)
+                }
+            }
+        )
+    }
+
+    if (showEditDialog) {
+        EditAccountModal(
+            account = account,
+            onDismiss = { showEditDialog = false },
+            onSave = { name, bank, type, bal, last4, color, inv, yield ->
+                onUpdateAccount(account.id, name, bank, type, bal, last4, color, inv, yield)
+                showEditDialog = false
+            }
+        )
+    }
 }
 
 @Composable
@@ -733,6 +797,162 @@ fun AddAccountModal(
                 colors = ButtonDefaults.buttonColors(containerColor = AccentNeon)
             ) {
                 Text("Guardar Cuenta", color = Color.Black, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar", color = TextSecondary)
+            }
+        }
+    )
+}
+
+@Composable
+fun EditAccountModal(
+    account: Account,
+    onDismiss: () -> Unit,
+    onSave: (name: String, bankName: String, type: AccountType, balance: Double, last4: String, colorHex: String, investment: Double, yield: Double) -> Unit
+) {
+    val bankOptions = listOf(
+        "Revolut México", "BBVA México", "Nu México", "Mercado Pago",
+        "Santander", "Banorte", "Citibanamex", "Hey Banco",
+        "Stori", "Klar", "Ualá", "Plata Card", "UNO", "Clip",
+        "Novacard", "Lenda", "ARQ", "Banco Azteca", "HSBC México",
+        "Scotiabank", "Spin by OXXO", "Inbursa", "BanCoppel", "RappiCard",
+        "DolarApp", "Efectivo", "Otro"
+    )
+
+    var name by remember { mutableStateOf(account.name) }
+    var selectedBank by remember {
+        mutableStateOf(if (account.bankName in bankOptions) account.bankName else "Otro")
+    }
+    var customBankText by remember {
+        mutableStateOf(if (account.bankName in bankOptions) "" else account.bankName)
+    }
+    var balanceText by remember { mutableStateOf(if (account.balance == 0.0) "" else account.balance.toString()) }
+    var last4Digits by remember { mutableStateOf(account.last4Digits) }
+    var investmentText by remember { mutableStateOf(if (account.investmentAmount == 0.0) "" else account.investmentAmount.toString()) }
+    var yieldText by remember { mutableStateOf(if (account.annualYieldRate == 0.0) "" else account.annualYieldRate.toString()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Editar Cuenta Bancaria", fontWeight = FontWeight.Bold, color = TextPrimary) },
+        text = {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                item {
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        label = { Text("Nombre de la cuenta") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                item {
+                    Text("Banco o Institución:", fontSize = 12.sp, color = TextSecondary)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        bankOptions.forEach { b ->
+                            FilterChip(
+                                selected = selectedBank == b,
+                                onClick = { selectedBank = b },
+                                label = { Text(b, fontSize = 11.sp) }
+                            )
+                        }
+                    }
+                }
+
+                if (selectedBank == "Otro") {
+                    item {
+                        OutlinedTextField(
+                            value = customBankText,
+                            onValueChange = { customBankText = it },
+                            label = { Text("Especifica el nombre del banco o fintech") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+
+                item {
+                    OutlinedTextField(
+                        value = balanceText,
+                        onValueChange = { balanceText = it },
+                        label = { Text("Saldo actual ($)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                item {
+                    OutlinedTextField(
+                        value = last4Digits,
+                        onValueChange = { if (it.length <= 4) last4Digits = it },
+                        label = { Text("Últimos 4 dígitos (opcional)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                item {
+                    OutlinedTextField(
+                        value = investmentText,
+                        onValueChange = { investmentText = it },
+                        label = { Text("Monto en inversión / Cajitas ($)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                item {
+                    OutlinedTextField(
+                        value = yieldText,
+                        onValueChange = { yieldText = it },
+                        label = { Text("Tasa de rendimiento % anual") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val bal = balanceText.toDoubleOrNull() ?: 0.0
+                    val inv = investmentText.toDoubleOrNull() ?: 0.0
+                    val y = yieldText.toDoubleOrNull() ?: 0.0
+                    if (name.isNotBlank()) {
+                        val finalBank = if (selectedBank == "Otro" && customBankText.isNotBlank()) customBankText.trim() else selectedBank
+                        val color = when (finalBank) {
+                            "Revolut México" -> "#0075EB"
+                            "BBVA México" -> "#004481"
+                            "Nu México" -> "#820AD1"
+                            "Mercado Pago" -> "#009EE3"
+                            "Santander" -> "#EC0000"
+                            "Banorte" -> "#EB0029"
+                            "Citibanamex" -> "#002D72"
+                            "Stori" -> "#00B140"
+                            "UNO" -> "#FF5000"
+                            "Klar" -> "#00E676"
+                            "Ualá" -> "#FF3366"
+                            "Plata Card" -> "#212121"
+                            "Clip" -> "#FF5900"
+                            "Efectivo" -> "#00E676"
+                            else -> account.colorHex
+                        }
+                        onSave(name.trim(), finalBank, account.type, bal, last4Digits.trim(), color, inv, y)
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = AccentNeon)
+            ) {
+                Text("Guardar Cambios", color = Color.Black, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {

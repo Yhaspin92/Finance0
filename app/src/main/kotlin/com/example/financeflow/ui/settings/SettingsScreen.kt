@@ -30,6 +30,7 @@ import com.example.financeflow.ui.FinanceViewModel
 import com.example.financeflow.ui.components.GlassCard
 import com.example.financeflow.domain.model.PayrollFrequency
 import com.example.financeflow.domain.model.AccountType
+import com.example.financeflow.domain.model.CardNetWorthMode
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import com.example.financeflow.ui.theme.*
@@ -45,6 +46,7 @@ fun SettingsScreen(
     modifier: Modifier = Modifier
 ) {
     val currentTheme by viewModel.themeMode.collectAsState()
+    val cardNetWorthMode by viewModel.cardNetWorthMode.collectAsState()
     val updateState by viewModel.updateState.collectAsState()
     val payrollConfig by viewModel.payrollConfig.collectAsState()
     val accounts by viewModel.accounts.collectAsState()
@@ -220,6 +222,99 @@ fun SettingsScreen(
                             unselectedColor = TextMuted
                         )
                     )
+                }
+            }
+        }
+
+        item {
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = "💳 Cómputo de Tarjetas en Patrimonio Neto",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
+            Text(
+                text = "Elige si las tarjetas de crédito restan la deuda o suman el saldo disponible",
+                fontSize = 12.sp,
+                color = TextSecondary
+            )
+        }
+
+        item {
+            GlassCard(
+                modifier = Modifier.fillMaxWidth(),
+                shapeRadius = 16.dp,
+                borderColor = FintechCardBorder
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    // Opción 1: Deuda actual (Resta)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { viewModel.setCardNetWorthMode(CardNetWorthMode.DEBT) }
+                            .padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Restar deuda acumulada (-$)",
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary,
+                                fontSize = 14.sp
+                            )
+                            Text(
+                                text = "Ej. Si debes $6,000 de $10,000, se restan -$6,000 en el patrimonio neto.",
+                                color = TextSecondary,
+                                fontSize = 11.sp
+                            )
+                        }
+                        RadioButton(
+                            selected = cardNetWorthMode == CardNetWorthMode.DEBT,
+                            onClick = { viewModel.setCardNetWorthMode(CardNetWorthMode.DEBT) },
+                            colors = RadioButtonDefaults.colors(
+                                selectedColor = AccentNeon,
+                                unselectedColor = TextMuted
+                            )
+                        )
+                    }
+
+                    HorizontalDivider(color = FintechBorder.copy(alpha = 0.5f))
+
+                    // Opción 2: Crédito disponible (Suma)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { viewModel.setCardNetWorthMode(CardNetWorthMode.AVAILABLE_CREDIT) }
+                            .padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Sumar crédito disponible (+$)",
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary,
+                                fontSize = 14.sp
+                            )
+                            Text(
+                                text = "Ej. Si tienes ocupados $6,000 de $10,000, muestra un saldo positivo de +$4,000 disponibles.",
+                                color = TextSecondary,
+                                fontSize = 11.sp
+                            )
+                        }
+                        RadioButton(
+                            selected = cardNetWorthMode == CardNetWorthMode.AVAILABLE_CREDIT,
+                            onClick = { viewModel.setCardNetWorthMode(CardNetWorthMode.AVAILABLE_CREDIT) },
+                            colors = RadioButtonDefaults.colors(
+                                selectedColor = AccentNeon,
+                                unselectedColor = TextMuted
+                            )
+                        )
+                    }
                 }
             }
         }

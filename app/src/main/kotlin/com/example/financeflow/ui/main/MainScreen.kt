@@ -70,6 +70,7 @@ fun MainScreen(
     val isNotificationPermissionGranted by viewModel.isNotificationPermissionGranted.collectAsStateWithLifecycle()
     val isBannerDismissed by viewModel.isBannerDismissed.collectAsStateWithLifecycle()
     val updateState by viewModel.updateState.collectAsStateWithLifecycle()
+    val cardNetWorthMode by viewModel.cardNetWorthMode.collectAsStateWithLifecycle()
 
     if (showSettingsScreen) {
         com.example.financeflow.ui.settings.SettingsScreen(
@@ -302,6 +303,7 @@ fun MainScreen(
                     transactions = transactions,
                     creditCards = creditCards,
                     receivables = receivables,
+                    cardNetWorthMode = cardNetWorthMode,
                     isNotificationPermissionGranted = isNotificationPermissionGranted,
                     isBannerDismissed = isBannerDismissed,
                     onDismissNotificationBanner = { viewModel.dismissNotificationBanner() },
@@ -340,6 +342,12 @@ fun MainScreen(
                     transactions = transactions,
                     onAddAccount = { name, bank, type, bal, last4, color, inv, yieldRate ->
                         viewModel.addAccount(name, bank, type, bal, last4, color, inv, yieldRate)
+                    },
+                    onUpdateAccount = { accId, name, bank, type, bal, last4, color, inv, yieldRate ->
+                        viewModel.updateAccount(accId, name, bank, type, bal, last4, color, inv, yieldRate)
+                    },
+                    onDeleteAccount = { accId ->
+                        viewModel.deleteAccount(accId)
                     },
                     onAddPocket = { accId, name, amt, target ->
                         viewModel.addPocketToAccount(accId, name, amt, target)

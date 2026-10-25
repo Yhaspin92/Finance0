@@ -177,10 +177,17 @@ data class AccountReceivable(
     val breakdown: List<ReceivableBreakdownItem> = emptyList()
 )
 
+// Modo de visualización de tarjetas en Patrimonio Neto
+@Serializable
+enum class CardNetWorthMode {
+    DEBT,              // Resta la deuda actual (-$6,000)
+    AVAILABLE_CREDIT   // Suma el crédito disponible (+$4,000)
+}
+
 // Modelo unificado de Copia de Seguridad Local
 @Serializable
 data class BackupData(
-    val appVersion: String = "1.6.1",
+    val appVersion: String = "1.7",
     val backupDate: Long = System.currentTimeMillis(),
     val accounts: List<Account> = emptyList(),
     val transactions: List<Transaction> = emptyList(),

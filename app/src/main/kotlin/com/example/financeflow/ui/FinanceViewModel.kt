@@ -69,11 +69,25 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     private val _updateState = MutableStateFlow<UpdateState>(UpdateState.Idle)
     val updateState: StateFlow<UpdateState> = _updateState.asStateFlow()
 
+    val cardNetWorthMode: StateFlow<CardNetWorthMode> = repository.cardNetWorthMode
+
+    fun setCardNetWorthMode(mode: CardNetWorthMode) {
+        repository.setCardNetWorthMode(mode)
+    }
+
     // Resumen financiero calculado dinámicamente
-    val netWorth: StateFlow<Double> = accounts.combine(creditCards) { accList, cardsList ->
+    val netWorth: StateFlow<Double> = combine(accounts, creditCards, cardNetWorthMode) { accList, cardsList, mode ->
         val assets = accList.filter { it.type != AccountType.CREDIT }.sumOf { it.balance }
-        val liabilities = cardsList.sumOf { it.currentDebt }
-        assets - liabilities
+        when (mode) {
+            CardNetWorthMode.DEBT -> {
+                val liabilities = cardsList.sumOf { it.currentDebt }
+                assets - liabilities
+            }
+            CardNetWorthMode.AVAILABLE_CREDIT -> {
+                val availableCredit = cardsList.sumOf { (it.creditLimit - it.currentDebt).coerceAtLeast(0.0) }
+                assets + availableCredit
+            }
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     val monthlyIncome: StateFlow<Double> = transactions.combine(accounts) { txList, _ ->
@@ -381,6 +395,24 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         annualYieldRate: Double = 0.0
     ) {
         repository.addAccount(name, bankName, type, balance, last4Digits, colorHex, investmentAmount, annualYieldRate)
+    }
+
+    fun updateAccount(
+        accountId: String,
+        name: String,
+        bankName: String,
+        type: AccountType,
+        balance: Double,
+        last4Digits: String = "",
+        colorHex: String = "#7C4DFF",
+        investmentAmount: Double = 0.0,
+        annualYieldRate: Double = 0.0
+    ) {
+        repository.updateAccount(accountId, name, bankName, type, balance, last4Digits, colorHex, investmentAmount, annualYieldRate)
+    }
+
+    fun deleteAccount(accountId: String) {
+        repository.deleteAccount(accountId)
     }
 
     fun addPocketToAccount(accountId: String, name: String, amount: Double, targetAmount: Double = 0.0) {

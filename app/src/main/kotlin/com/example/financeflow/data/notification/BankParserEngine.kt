@@ -55,11 +55,16 @@ object BankParserEngine {
         Pattern.CASE_INSENSITIVE
     )
 
-    fun parse(packageName: String, title: String, text: String): ParsedBankNotification? {
+    fun parse(
+        packageName: String,
+        title: String,
+        text: String,
+        userRegisteredBanks: List<String> = emptyList()
+    ): ParsedBankNotification? {
         val fullContent = "$title $text".trim()
         if (fullContent.isBlank()) return null
 
-        val detectedBank = detectBank(packageName, fullContent)
+        val detectedBank = detectBank(packageName, fullContent, userRegisteredBanks) ?: return null
         val extractedAmount = extractAmount(fullContent) ?: return null
         val detectedType = detectType(fullContent)
         val last4 = extractLast4Digits(fullContent)
@@ -74,14 +79,29 @@ object BankParserEngine {
             accountLast4 = last4,
             merchantOrConcept = merchant,
             rawText = fullContent,
-            confidence = if (detectedBank != "Banco / Fintech") 0.95f else 0.75f
+            confidence = 0.95f
         )
     }
 
-    private fun detectBank(packageName: String, content: String): String {
+    private fun detectBank(
+        packageName: String,
+        content: String,
+        userRegisteredBanks: List<String> = emptyList()
+    ): String? {
         BANK_PACKAGE_MAP[packageName.lowercase()]?.let { return it }
 
         val lower = content.lowercase()
+        val pkgLower = packageName.lowercase()
+
+        // 1. Verificar si coincide con algún banco dado de alta por el usuario
+        for (regBank in userRegisteredBanks) {
+            val rLower = regBank.trim().lowercase()
+            if (rLower.length >= 3 && (lower.contains(rLower) || pkgLower.contains(rLower))) {
+                return regBank
+            }
+        }
+
+        // 2. Verificar catálogo oficial de bancos mexicanos
         return when {
             lower.contains("bbva") || lower.contains("bancomer") -> "BBVA México"
             lower.contains("nu ") || lower.contains("nubank") || lower.contains("cuenta nu") -> "Nu México"
@@ -107,7 +127,7 @@ object BankParserEngine {
             lower.contains("arq") -> "ARQ"
             lower.contains("inbursa") -> "Inbursa"
             lower.contains("uala") || lower.contains("ualá") -> "Ualá"
-            else -> "Banco / Fintech"
+            else -> null
         }
     }
 

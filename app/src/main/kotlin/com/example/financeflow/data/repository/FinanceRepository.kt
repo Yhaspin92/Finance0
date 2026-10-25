@@ -54,6 +54,21 @@ class FinanceRepository private constructor(private val context: Context) {
 
     private val repoPrefs = context.getSharedPreferences("finance0_repo_prefs", Context.MODE_PRIVATE)
     private val PREF_HAS_INITIALIZED = "has_initialized_seed_data"
+    private val PREF_CARD_NET_WORTH_MODE = "card_net_worth_mode"
+
+    private val _cardNetWorthMode = MutableStateFlow(
+        try {
+            CardNetWorthMode.valueOf(repoPrefs.getString(PREF_CARD_NET_WORTH_MODE, CardNetWorthMode.DEBT.name) ?: CardNetWorthMode.DEBT.name)
+        } catch (_: Exception) {
+            CardNetWorthMode.DEBT
+        }
+    )
+    val cardNetWorthMode: StateFlow<CardNetWorthMode> = _cardNetWorthMode.asStateFlow()
+
+    fun setCardNetWorthMode(mode: CardNetWorthMode) {
+        _cardNetWorthMode.value = mode
+        repoPrefs.edit().putString(PREF_CARD_NET_WORTH_MODE, mode.name).apply()
+    }
 
     init {
         loadData()
@@ -534,7 +549,13 @@ class FinanceRepository private constructor(private val context: Context) {
     }
 
     fun processNotification(packageName: String, title: String, text: String): Boolean {
-        val parsed = BankParserEngine.parse(packageName, title, text)
+        val registeredAccounts = _accounts.value
+        val registeredCards = _creditCards.value
+        val registeredBankNames = (registeredAccounts.map { it.bankName } + registeredCards.map { it.bank })
+            .filter { it.isNotBlank() }
+            .distinct()
+
+        val parsed = BankParserEngine.parse(packageName, title, text, registeredBankNames)
         val now = System.currentTimeMillis()
 
         if (parsed == null) {
@@ -545,39 +566,64 @@ class FinanceRepository private constructor(private val context: Context) {
                 content = text,
                 timestamp = now,
                 parsedSuccess = false,
-                failureReason = "No se detectó monto ni banco reconocido"
+                failureReason = "No es una notificación de ningún banco reconocido o no contiene monto"
             )
             _notificationLogs.value = listOf(log) + _notificationLogs.value
             saveData()
             return false
         }
 
-        // Buscar cuenta coincidente por últimos 4 dígitos o por nombre de banco
-        var matchedAccount = _accounts.value.find { acc ->
+        // 1. Buscar cuenta coincidente por últimos 4 dígitos
+        var matchedAccount = registeredAccounts.find { acc ->
             !parsed.accountLast4.isNullOrBlank() && acc.last4Digits == parsed.accountLast4
         }
+        // 2. Si no coincide por last4, buscar por nombre de banco en cuentas
         if (matchedAccount == null) {
-            matchedAccount = _accounts.value.find { acc ->
-                acc.bankName.equals(parsed.bankName, ignoreCase = true)
+            matchedAccount = registeredAccounts.find { acc ->
+                acc.bankName.equals(parsed.bankName, ignoreCase = true) ||
+                (parsed.bankName.isNotBlank() && (acc.bankName.contains(parsed.bankName, ignoreCase = true) || parsed.bankName.contains(acc.bankName, ignoreCase = true)))
             }
         }
-        // Si aún no se encuentra, usar la primera cuenta disponible o crear una nueva para ese banco
-        if (matchedAccount == null) {
-            val newAcc = Account(
-                id = "acc_auto_${UUID.randomUUID().toString().take(6)}",
-                name = "${parsed.bankName} ${parsed.accountLast4?.let { "*$it" } ?: "Auto"}",
-                bankName = parsed.bankName,
-                type = if (parsed.type == TransactionType.CREDIT_CARD_PAYMENT) AccountType.CREDIT else AccountType.DEBIT,
-                balance = 0.0,
-                last4Digits = parsed.accountLast4 ?: ""
-            )
-            _accounts.value = _accounts.value + newAcc
-            matchedAccount = newAcc
+        // 3. Buscar si coincide con alguna tarjeta de crédito registrada
+        val matchedCard = registeredCards.find { card ->
+            (!parsed.accountLast4.isNullOrBlank() && card.last4Digits == parsed.accountLast4) ||
+            card.bank.equals(parsed.bankName, ignoreCase = true) ||
+            (parsed.bankName.isNotBlank() && (card.bank.contains(parsed.bankName, ignoreCase = true) || parsed.bankName.contains(card.bank, ignoreCase = true)))
+        }
+        if (matchedAccount == null && matchedCard != null) {
+            matchedAccount = registeredAccounts.find { it.id == matchedCard.accountId }
+                ?: registeredAccounts.firstOrNull { it.type == AccountType.CREDIT }
+                ?: registeredAccounts.firstOrNull()
         }
 
-        // Registrar la transacción
+        // SI NO COINCIDE CON NINGÚN BANCO O CUENTA DADA DE ALTA POR EL USUARIO:
+        // Se descarta sin crear cuentas falsas o no deseadas
+        if (matchedAccount == null && matchedCard == null) {
+            val log = NotificationLog(
+                id = UUID.randomUUID().toString(),
+                packageName = packageName,
+                title = title,
+                content = text,
+                timestamp = now,
+                parsedSuccess = false,
+                detectedBank = parsed.bankName,
+                detectedAmount = parsed.amount,
+                detectedAccountLast4 = parsed.accountLast4,
+                failureReason = "El banco detectado (${parsed.bankName}) no está dado de alta en tus Cuentas Bancarias de Finance0."
+            )
+            _notificationLogs.value = listOf(log) + _notificationLogs.value
+            saveData()
+            return false
+        }
+
+        val targetAccount = matchedAccount ?: registeredAccounts.firstOrNull()
+        if (targetAccount == null) {
+            return false
+        }
+
+        // Registrar la transacción en la cuenta bancaria del usuario
         addTransaction(
-            accountId = matchedAccount.id,
+            accountId = targetAccount.id,
             title = parsed.merchantOrConcept,
             amount = parsed.amount,
             type = parsed.type,
@@ -731,6 +777,56 @@ class FinanceRepository private constructor(private val context: Context) {
         _accounts.value = _accounts.value + newAcc
         saveData()
         return newAcc
+    }
+
+    fun updateAccount(
+        accountId: String,
+        name: String,
+        bankName: String,
+        type: AccountType,
+        balance: Double,
+        last4Digits: String = "",
+        colorHex: String = "#7C4DFF",
+        investmentAmount: Double = 0.0,
+        annualYieldRate: Double = 0.0
+    ) {
+        _accounts.value = _accounts.value.map { acc ->
+            if (acc.id == accountId) {
+                acc.copy(
+                    name = name,
+                    bankName = bankName,
+                    type = type,
+                    balance = balance,
+                    last4Digits = last4Digits,
+                    colorHex = colorHex,
+                    investmentAmount = investmentAmount,
+                    annualYieldRate = annualYieldRate
+                )
+            } else acc
+        }
+        saveData()
+    }
+
+    fun deleteAccount(accountId: String) {
+        val target = _accounts.value.find { it.id == accountId }
+        _accounts.value = _accounts.value.filter { it.id != accountId }
+        // Desvincular tarjetas asociadas a esta cuenta
+        _creditCards.value = _creditCards.value.map { card ->
+            if (card.accountId == accountId) card.copy(accountId = "") else card
+        }
+        if (target != null) {
+            addTransaction(
+                accountId = accountId,
+                title = "Cuenta Eliminada: ${target.name}",
+                amount = target.balance,
+                type = TransactionType.EXPENSE,
+                category = TransactionCategory.OTROS,
+                note = "Cuenta bancaria eliminada por el usuario (${target.bankName}).",
+                bankName = target.bankName,
+                updateAccountBalance = false
+            )
+        }
+        saveData()
     }
 
     fun addPocketToAccount(accountId: String, name: String, amount: Double, targetAmount: Double = 0.0) {
@@ -998,7 +1094,7 @@ class FinanceRepository private constructor(private val context: Context) {
 
     fun createBackupJson(): String {
         val backup = BackupData(
-            appVersion = "1.6.1",
+            appVersion = "1.7",
             backupDate = System.currentTimeMillis(),
             accounts = _accounts.value,
             transactions = _transactions.value,

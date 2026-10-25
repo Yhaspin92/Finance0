@@ -50,6 +50,7 @@ fun DashboardScreen(
     transactions: List<Transaction>,
     creditCards: List<CreditCard>,
     receivables: List<AccountReceivable>,
+    cardNetWorthMode: CardNetWorthMode = CardNetWorthMode.DEBT,
     isNotificationPermissionGranted: Boolean,
     isBannerDismissed: Boolean,
     onDismissNotificationBanner: () -> Unit,
@@ -487,6 +488,26 @@ fun DashboardScreen(
                                             fontWeight = FontWeight.ExtraBold,
                                             color = TextPrimary
                                         )
+
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        val totalCardsDebt = creditCards.sumOf { it.currentDebt }
+                                        val totalAvailableCredit = creditCards.sumOf { (it.creditLimit - it.currentDebt).coerceAtLeast(0.0) }
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(if (cardNetWorthMode == CardNetWorthMode.DEBT) FintechExpense.copy(alpha = 0.15f) else AccentNeon.copy(alpha = 0.15f))
+                                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                                        ) {
+                                            Text(
+                                                text = if (cardNetWorthMode == CardNetWorthMode.DEBT)
+                                                    "💳 Deuda en tarjetas: -${Formatters.formatCurrency(totalCardsDebt)}"
+                                                else
+                                                    "💳 Crédito disponible: +${Formatters.formatCurrency(totalAvailableCredit)}",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = if (cardNetWorthMode == CardNetWorthMode.DEBT) FintechExpense else AccentNeon
+                                            )
+                                        }
 
                                         Spacer(modifier = Modifier.height(10.dp))
 

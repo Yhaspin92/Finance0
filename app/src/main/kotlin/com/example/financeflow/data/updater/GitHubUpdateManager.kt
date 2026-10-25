@@ -43,9 +43,9 @@ class GitHubUpdateManager(private val context: Context) {
                 @Suppress("DEPRECATION")
                 context.packageManager.getPackageInfo(context.packageName, 0)
             }
-            pInfo.versionName ?: "1.6.1"
+            pInfo.versionName ?: "1.7"
         } catch (_: Exception) {
-            "1.6.1"
+            "1.7"
         }
 
     private val prefs = context.getSharedPreferences("finance0_updater_prefs", Context.MODE_PRIVATE)

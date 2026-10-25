@@ -27,6 +27,10 @@ import androidx.compose.ui.unit.sp
 import com.example.financeflow.data.updater.UpdateState
 import com.example.financeflow.ui.FinanceViewModel
 import com.example.financeflow.ui.components.GlassCard
+import com.example.financeflow.domain.model.PayrollFrequency
+import com.example.financeflow.domain.model.AccountType
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import com.example.financeflow.ui.theme.*
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
@@ -41,11 +45,19 @@ fun SettingsScreen(
 ) {
     val currentTheme by viewModel.themeMode.collectAsState()
     val updateState by viewModel.updateState.collectAsState()
+    val payrollConfig by viewModel.payrollConfig.collectAsState()
+    val accounts by viewModel.accounts.collectAsState()
     val context = LocalContext.current
 
     var showMasterResetDialog by remember { mutableStateOf(false) }
     var resetSuccessMessage by remember { mutableStateOf(false) }
     var backupStatusMessage by remember { mutableStateOf<String?>(null) }
+
+    var payrollFrequency by remember(payrollConfig) { mutableStateOf(payrollConfig.frequency) }
+    var payrollAmountText by remember(payrollConfig) { mutableStateOf(payrollConfig.expectedAmount.toString()) }
+    var payrollCustomDaysText by remember(payrollConfig) { mutableStateOf(payrollConfig.customDays.joinToString(", ")) }
+    var payrollAccountId by remember(payrollConfig) { mutableStateOf(payrollConfig.defaultAccountId ?: accounts.firstOrNull()?.id ?: "") }
+    var payrollSavedMessage by remember { mutableStateOf(false) }
 
     var githubRepo by remember { mutableStateOf(viewModel.updateManager.configuredRepo) }
     var githubToken by remember { mutableStateOf(viewModel.updateManager.personalAccessToken) }
@@ -382,7 +394,146 @@ fun SettingsScreen(
         }
 
         // ==========================================
-        // 3. SECCIÓN DE RESPALDO Y RESTAURACIÓN LOCAL
+        // 3. SECCIÓN DE CONFIGURACIÓN DE NÓMINA Y CALENDARIO
+        // ==========================================
+        item {
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "📅 Calendario y Cobro de Nómina",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
+            Text(
+                text = "Configura la frecuencia con la que cobras tu sueldo (quincenal, semanal, mensual o personalizada)",
+                fontSize = 12.sp,
+                color = TextSecondary
+            )
+        }
+
+        item {
+            GlassCard(
+                borderColor = AccentNeon.copy(alpha = 0.4f),
+                accentGlow = AccentNeon,
+                shapeRadius = 18.dp
+            ) {
+                Text("Frecuencia de Cobro:", fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 14.sp)
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    PayrollFrequency.values().forEach { freq ->
+                        val isSelected = payrollFrequency == freq
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { payrollFrequency = freq },
+                            label = {
+                                Text(
+                                    when (freq) {
+                                        PayrollFrequency.QUINCENAL -> "Por Quincena (15 y fin)"
+                                        PayrollFrequency.SEMANAL -> "Por Semana"
+                                        PayrollFrequency.MENSUAL -> "Por Mes"
+                                        PayrollFrequency.CATORCENAL -> "Catorcenal (14 días)"
+                                        PayrollFrequency.PERSONALIZADO -> "Personalizado"
+                                    }
+                                )
+                            }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                if (payrollFrequency == PayrollFrequency.PERSONALIZADO) {
+                    OutlinedTextField(
+                        value = payrollCustomDaysText,
+                        onValueChange = { payrollCustomDaysText = it },
+                        label = { Text("Días del mes en que cobras (ej. 5, 20 o 1, 15)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+
+                OutlinedTextField(
+                    value = payrollAmountText,
+                    onValueChange = { payrollAmountText = it },
+                    label = { Text("Monto esperado por pago de nómina ($ MXN)") },
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Text("Cuenta donde recibes tu nómina:", fontSize = 12.sp, color = TextSecondary)
+                Spacer(modifier = Modifier.height(4.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    accounts.filter { it.type != AccountType.CREDIT }.forEach { acc ->
+                        val isSelected = payrollAccountId == acc.id
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSelected) AccentNeon.copy(alpha = 0.15f) else FintechSurface)
+                                .clickable { payrollAccountId = acc.id }
+                                .padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = isSelected,
+                                onClick = { payrollAccountId = acc.id }
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("${acc.name} (${acc.bankName})", fontSize = 12.sp, color = TextPrimary)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Button(
+                    onClick = {
+                        val amount = payrollAmountText.toDoubleOrNull() ?: 15000.0
+                        val customDays = payrollCustomDaysText
+                            .split(",")
+                            .mapNotNull { it.trim().toIntOrNull() }
+                            .filter { it in 1..31 }
+
+                        val newConfig = payrollConfig.copy(
+                            frequency = payrollFrequency,
+                            expectedAmount = amount,
+                            customDays = if (customDays.isNotEmpty()) customDays else listOf(15, 30),
+                            defaultAccountId = payrollAccountId.ifBlank { null }
+                        )
+                        viewModel.updatePayrollConfig(newConfig)
+                        payrollSavedMessage = true
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentNeon)
+                ) {
+                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Guardar Configuración de Nómina", color = Color.Black, fontWeight = FontWeight.Bold)
+                }
+
+                if (payrollSavedMessage) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "✅ Configuración de nómina y calendario actualizada.",
+                        color = NeonEmerald,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
+        // ==========================================
+        // 4. SECCIÓN DE RESPALDO Y RESTAURACIÓN LOCAL
         // ==========================================
         item {
             Spacer(modifier = Modifier.height(6.dp))

@@ -36,6 +36,15 @@ enum class TransactionCategory {
 }
 
 @Serializable
+data class AccountPocket(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val name: String,
+    val amount: Double,
+    val targetAmount: Double = 0.0,
+    val note: String = ""
+)
+
+@Serializable
 data class Account(
     val id: String,
     val name: String,
@@ -44,7 +53,10 @@ data class Account(
     val balance: Double,
     val creditLimit: Double = 0.0,
     val colorHex: String = "#7C4DFF",
-    val last4Digits: String = ""
+    val last4Digits: String = "",
+    val pockets: List<AccountPocket> = emptyList(),
+    val investmentAmount: Double = 0.0,
+    val annualYieldRate: Double = 0.0
 )
 
 @Serializable
@@ -74,7 +86,8 @@ data class CreditCard(
     val cutOffDay: Int,        // Día del mes en que corta (ej. 10)
     val paymentDueDay: Int,    // Día límite de pago (ej. 30)
     val colorHex: String = "#FF1744",
-    val last4Digits: String = ""
+    val last4Digits: String = "",
+    val isDebit: Boolean = false
 )
 
 // Modelo para Compras a Meses Sin Intereses (MSI)
@@ -104,10 +117,11 @@ data class BillReminder(
 
 @Serializable
 enum class PayrollFrequency {
-    QUINCENAL,  // Días 15 y último día del mes
-    CATORCENAL, // Cada dos semanas (viernes)
-    SEMANAL,    // Cada semana
-    MENSUAL     // Fin de mes
+    QUINCENAL,    // Días 15 y último día del mes
+    CATORCENAL,   // Cada dos semanas (viernes)
+    SEMANAL,      // Cada semana
+    MENSUAL,      // Fin de mes o día elegido
+    PERSONALIZADO // Días específicos del mes (ej. día 5 y 20)
 }
 
 @Serializable
@@ -115,6 +129,7 @@ data class PayrollConfig(
     val frequency: PayrollFrequency = PayrollFrequency.QUINCENAL,
     val day1: Int = 15,
     val day2: Int = 0,         // 0 indica último día del mes (28/29/30/31)
+    val customDays: List<Int> = listOf(15, 30),
     val expectedAmount: Double = 15000.0,
     val defaultAccountId: String? = null
 )

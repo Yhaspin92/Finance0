@@ -113,35 +113,43 @@ class FinanceRepository private constructor(private val context: Context) {
     private fun seedInitialData() {
         val accBbva = Account(
             id = "acc_bbva_1",
-            name = "BBVA Nómina",
+            name = "BBVA Nómina & Ahorros",
             bankName = "BBVA México",
             type = AccountType.DEBIT,
             balance = 18450.00,
             colorHex = "#004481", // Azul BBVA
-            last4Digits = "4821"
+            last4Digits = "4821",
+            pockets = listOf(
+                AccountPocket(name = "Fondo Emergencia", amount = 8000.0, targetAmount = 20000.0),
+                AccountPocket(name = "Vacaciones Cancún", amount = 4500.0, targetAmount = 10000.0)
+            )
         )
         val accNuCredit = Account(
             id = "acc_nu_1",
-            name = "Tarjeta Nu Crédito",
+            name = "Cuenta Nu & Cajita",
             bankName = "Nu México",
-            type = AccountType.CREDIT,
-            balance = 4850.00, // Deuda actual
+            type = AccountType.DEBIT,
+            balance = 15200.00,
             creditLimit = 32000.00,
             colorHex = "#820AD1", // Morado Nu
-            last4Digits = "9042"
+            last4Digits = "9042",
+            investmentAmount = 12000.0,
+            annualYieldRate = 13.5
         )
         val accMp = Account(
             id = "acc_mp_1",
-            name = "Mercado Pago",
+            name = "Mercado Pago GBM",
             bankName = "Mercado Pago",
             type = AccountType.DEBIT,
             balance = 4320.50,
             colorHex = "#009EE3", // Azul Mercado Pago
-            last4Digits = "1182"
+            last4Digits = "1182",
+            investmentAmount = 3500.0,
+            annualYieldRate = 10.4
         )
         val accCash = Account(
             id = "acc_cash_1",
-            name = "Efectivo Cartera",
+            name = "Efectivo Físico",
             bankName = "Efectivo",
             type = AccountType.CASH,
             balance = 1200.00,
@@ -603,6 +611,93 @@ class FinanceRepository private constructor(private val context: Context) {
     fun deleteInstallmentPurchase(installmentId: String) {
         _installmentPurchases.value = _installmentPurchases.value.filter { it.id != installmentId }
         saveData()
+    }
+
+    // --- Módulo Cuentas Bancarias & Tarjetas ---
+
+    fun addAccount(
+        name: String,
+        bankName: String,
+        type: AccountType,
+        balance: Double,
+        last4Digits: String = "",
+        colorHex: String = "#7C4DFF",
+        investmentAmount: Double = 0.0,
+        annualYieldRate: Double = 0.0
+    ): Account {
+        val newAcc = Account(
+            id = UUID.randomUUID().toString(),
+            name = name,
+            bankName = bankName,
+            type = type,
+            balance = balance,
+            last4Digits = last4Digits,
+            colorHex = colorHex,
+            investmentAmount = investmentAmount,
+            annualYieldRate = annualYieldRate
+        )
+        _accounts.value = _accounts.value + newAcc
+        saveData()
+        return newAcc
+    }
+
+    fun addPocketToAccount(accountId: String, name: String, amount: Double, targetAmount: Double = 0.0) {
+        _accounts.value = _accounts.value.map { acc ->
+            if (acc.id == accountId) {
+                val newPocket = AccountPocket(
+                    id = UUID.randomUUID().toString(),
+                    name = name,
+                    amount = amount,
+                    targetAmount = targetAmount
+                )
+                acc.copy(pockets = acc.pockets + newPocket)
+            } else acc
+        }
+        saveData()
+    }
+
+    fun addCreditCard(
+        cardName: String,
+        bank: String,
+        last4Digits: String,
+        creditLimit: Double,
+        currentDebt: Double,
+        cutOffDay: Int,
+        paymentDueDay: Int,
+        linkedAccountId: String?,
+        isDebit: Boolean = false,
+        colorHex: String = "#FF1744"
+    ): CreditCard {
+        val targetAccId = if (!linkedAccountId.isNullOrBlank()) {
+            linkedAccountId
+        } else {
+            val newAcc = addAccount(
+                name = cardName,
+                bankName = bank,
+                type = if (isDebit) AccountType.DEBIT else AccountType.CREDIT,
+                balance = if (isDebit) 0.0 else -currentDebt,
+                last4Digits = last4Digits,
+                colorHex = colorHex
+            )
+            newAcc.id
+        }
+
+        val newCard = CreditCard(
+            id = UUID.randomUUID().toString(),
+            accountId = targetAccId,
+            cardName = cardName,
+            bank = bank,
+            last4Digits = last4Digits,
+            creditLimit = creditLimit,
+            currentDebt = currentDebt,
+            cutOffDay = cutOffDay,
+            paymentDueDay = paymentDueDay,
+            colorHex = colorHex,
+            isDebit = isDebit
+        )
+        _creditCards.value = _creditCards.value + newCard
+        saveData()
+        return newCard
     }
 
     // --- Módulo Cuentas por Cobrar (Dinero por recibir en el mes, no disponible en físico) ---

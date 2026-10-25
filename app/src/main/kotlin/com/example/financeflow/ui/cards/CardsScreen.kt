@@ -1,6 +1,7 @@
 package com.example.financeflow.ui.cards
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -32,6 +33,7 @@ fun CardsScreen(
     creditCards: List<CreditCard>,
     accounts: List<Account>,
     installmentPurchases: List<InstallmentPurchase>,
+    onAddCard: (cardName: String, bank: String, last4: String, creditLimit: Double, debt: Double, cutOff: Int, dueDay: Int, linkedAccId: String?, isDebit: Boolean) -> Unit,
     onPayCardClick: (debitAccountId: String, creditCardId: String, amount: Double) -> Unit,
     onAddInstallmentPurchase: (cardId: String, title: String, totalAmount: Double, totalMonths: Int, note: String) -> Unit,
     onAdvanceInstallmentMonth: (String) -> Unit,
@@ -45,6 +47,7 @@ fun CardsScreen(
     }
 
     var showAddMsiDialog by remember { mutableStateOf(false) }
+    var showAddCardDialog by remember { mutableStateOf(false) }
 
     val todayDay = Calendar.getInstance().get(Calendar.DAY_OF_MONTH)
     val maxDayInMonth = Calendar.getInstance().getActualMaximum(Calendar.DAY_OF_MONTH)
@@ -78,13 +81,13 @@ fun CardsScreen(
                 }
 
                 Button(
-                    onClick = { showAddMsiDialog = true },
+                    onClick = { showAddCardDialog = true },
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = NeonViolet)
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentNeon)
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = "MSI", modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.CreditCard, contentDescription = "Añadir Tarjeta", tint = Color.Black, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("+ MSI", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text("+ Tarjeta", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 }
             }
         }
@@ -364,6 +367,19 @@ fun CardsScreen(
                         fontSize = 12.sp,
                         color = TextSecondary
                     )
+                }
+
+                FilledTonalButton(
+                    onClick = { showAddMsiDialog = true },
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = AccentSecondary.copy(alpha = 0.2f),
+                        contentColor = AccentSecondary
+                    )
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Nueva MSI", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -687,6 +703,198 @@ fun CardsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showAddMsiDialog = false }) {
+                    Text("Cancelar", color = TextSecondary)
+                }
+            },
+            containerColor = FintechSurface
+        )
+    }
+
+    // Modal para Añadir Tarjeta (Crédito o Débito con vinculación a cuentas)
+    if (showAddCardDialog) {
+        var cardName by remember { mutableStateOf("") }
+        var isDebit by remember { mutableStateOf(false) }
+        var selectedBank by remember { mutableStateOf("BBVA México") }
+        var last4Digits by remember { mutableStateOf("") }
+        var creditLimitText by remember { mutableStateOf("") }
+        var currentDebtText by remember { mutableStateOf("0") }
+        var cutOffDayText by remember { mutableStateOf("10") }
+        var paymentDueDayText by remember { mutableStateOf("30") }
+        var selectedAccountId by remember { mutableStateOf(accounts.firstOrNull()?.id ?: "") }
+
+        val bankOptions = listOf(
+            "BBVA México", "Nu México", "Mercado Pago", "Santander",
+            "Banorte", "Citibanamex", "Hey Banco", "HSBC México", "Scotiabank", "Otro"
+        )
+
+        AlertDialog(
+            onDismissRequest = { showAddCardDialog = false },
+            title = {
+                Text("Añadir Tarjeta", fontWeight = FontWeight.Bold, color = TextPrimary)
+            },
+            text = {
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    item {
+                        // Selector: ¿Crédito o Débito?
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            FilterChip(
+                                selected = !isDebit,
+                                onClick = { isDebit = false },
+                                label = { Text("Tarjeta de Crédito") },
+                                modifier = Modifier.weight(1f)
+                            )
+                            FilterChip(
+                                selected = isDebit,
+                                onClick = { isDebit = true },
+                                label = { Text("Tarjeta de Débito") },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+
+                    item {
+                        OutlinedTextField(
+                            value = cardName,
+                            onValueChange = { cardName = it },
+                            label = { Text("Nombre de la tarjeta (ej. Nu Platinum, BBVA Azul)") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    item {
+                        Text("Banco Emisor:", fontSize = 12.sp, color = TextSecondary)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState())
+                                .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            bankOptions.forEach { b ->
+                                FilterChip(
+                                    selected = selectedBank == b,
+                                    onClick = { selectedBank = b },
+                                    label = { Text(b.split(" ")[0]) }
+                                )
+                            }
+                        }
+                    }
+
+                    item {
+                        OutlinedTextField(
+                            value = last4Digits,
+                            onValueChange = { if (it.length <= 4) last4Digits = it },
+                            label = { Text("Últimos 4 dígitos (ej. 9042)") },
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    item {
+                        Text("¿Vinculada a alguna de tus cuentas bancarias?", fontSize = 12.sp, color = TextSecondary)
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            accounts.forEach { acc ->
+                                val isSelected = selectedAccountId == acc.id
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isSelected) AccentNeon.copy(alpha = 0.15f) else FintechSurface)
+                                        .clickable { selectedAccountId = acc.id }
+                                        .padding(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    RadioButton(
+                                        selected = isSelected,
+                                        onClick = { selectedAccountId = acc.id }
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("${acc.name} (${acc.bankName})", fontSize = 12.sp, color = TextPrimary)
+                                }
+                            }
+                        }
+                    }
+
+                    if (!isDebit) {
+                        item {
+                            OutlinedTextField(
+                                value = creditLimitText,
+                                onValueChange = { creditLimitText = it },
+                                label = { Text("Límite de Crédito ($)") },
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+
+                        item {
+                            OutlinedTextField(
+                                value = currentDebtText,
+                                onValueChange = { currentDebtText = it },
+                                label = { Text("Deuda actual en la tarjeta ($)") },
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+
+                        item {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                OutlinedTextField(
+                                    value = cutOffDayText,
+                                    onValueChange = { cutOffDayText = it },
+                                    label = { Text("Día de corte") },
+                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                                    modifier = Modifier.weight(1f)
+                                )
+                                OutlinedTextField(
+                                    value = paymentDueDayText,
+                                    onValueChange = { paymentDueDayText = it },
+                                    label = { Text("Día límite pago") },
+                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val limit = creditLimitText.toDoubleOrNull() ?: 0.0
+                        val debt = currentDebtText.toDoubleOrNull() ?: 0.0
+                        val cutOff = cutOffDayText.toIntOrNull() ?: 10
+                        val dueDay = paymentDueDayText.toIntOrNull() ?: 30
+                        if (cardName.isNotBlank()) {
+                            onAddCard(
+                                cardName.trim(),
+                                selectedBank,
+                                last4Digits.trim(),
+                                limit,
+                                debt,
+                                cutOff,
+                                dueDay,
+                                selectedAccountId.ifBlank { null },
+                                isDebit
+                            )
+                            showAddCardDialog = false
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentNeon)
+                ) {
+                    Text("Guardar Tarjeta", color = Color.Black, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddCardDialog = false }) {
                     Text("Cancelar", color = TextSecondary)
                 }
             },

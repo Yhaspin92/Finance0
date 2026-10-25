@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
@@ -33,10 +34,10 @@ import com.example.financeflow.ui.transactions.TransactionsScreen
 
 enum class AppTab(val title: String) {
     RESUMEN("Resumen"),
+    CUENTAS("Cuentas"),
+    TARJETAS("Tarjetas & MSI"),
     MOVIMIENTOS("Movimientos"),
-    TARJETAS("Tarjetas"),
-    CALENDARIO("Calendario"),
-    NOTIFICACIONES("Notificaciones")
+    CALENDARIO("Calendario")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -48,6 +49,7 @@ fun MainScreen(
     var currentTab by remember { mutableStateOf(AppTab.RESUMEN) }
     var showQuickActionDialog by remember { mutableStateOf(false) }
     var showSettingsScreen by remember { mutableStateOf(false) }
+    var showNotificationScreen by remember { mutableStateOf(false) }
 
     var showCalculatorDialog by remember { mutableStateOf(false) }
 
@@ -74,6 +76,39 @@ fun MainScreen(
             viewModel = viewModel,
             onBack = { showSettingsScreen = false }
         )
+    } else if (showNotificationScreen) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Column {
+                            Text("Monitor de Notificaciones", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                            Text("Lector automático y auditoría de bancos", fontSize = 11.sp, color = TextSecondary)
+                        }
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = { showNotificationScreen = false }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Regresar", tint = TextPrimary)
+                        }
+                    }
+                )
+            }
+        ) { paddingValues ->
+            NotificationMonitorScreen(
+                isPermissionGranted = isNotificationPermissionGranted,
+                notificationLogs = notificationLogs,
+                onOpenSettings = {
+                    BankNotificationListenerService.openNotificationAccessSettings(context)
+                },
+                onRefreshPermission = {
+                    viewModel.checkPermission()
+                },
+                onSimulateNotification = { pkg, title, text ->
+                    viewModel.simulateNotification(pkg, title, text)
+                },
+                modifier = Modifier.padding(paddingValues)
+            )
+        }
     } else {
         Scaffold(
             topBar = {
@@ -112,6 +147,26 @@ fun MainScreen(
                         }
                     },
                     actions = {
+                        // Botón de Monitor de Notificaciones (Lector bancario)
+                        IconButton(onClick = { showNotificationScreen = true }) {
+                            BadgedBox(
+                                badge = {
+                                    if (!isNotificationPermissionGranted) {
+                                        Badge(containerColor = FintechWarning) {
+                                            Text("!", color = FintechBackground, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    Icons.Default.Notifications,
+                                    contentDescription = "Notificaciones Bancarias",
+                                    tint = if (!isNotificationPermissionGranted) FintechWarning else NeonCyan,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+
                         // Botón de Calculadora Funcional
                         IconButton(onClick = { showCalculatorDialog = true }) {
                             Icon(
@@ -122,7 +177,7 @@ fun MainScreen(
                             )
                         }
 
-                        // Botón de Configuración (Temas, OTA, Respaldo, Borrado Maestro)
+                        // Botón de Configuración (Temas, OTA, Nómina, Respaldo, Borrado Maestro)
                         IconButton(onClick = { showSettingsScreen = true }) {
                             Icon(
                                 Icons.Default.Settings,
@@ -163,12 +218,40 @@ fun MainScreen(
                 NavigationBarItem(
                     selected = currentTab == AppTab.RESUMEN,
                     onClick = { currentTab = AppTab.RESUMEN },
-                    icon = { Icon(Icons.Default.AccountBalance, contentDescription = "Resumen") },
+                    icon = { Icon(Icons.Default.Dashboard, contentDescription = "Resumen") },
                     label = { Text("Resumen", fontSize = 10.sp) },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = NeonEmerald,
-                        selectedTextColor = NeonEmerald,
-                        indicatorColor = NeonEmerald.copy(alpha = 0.15f),
+                        selectedIconColor = AccentNeon,
+                        selectedTextColor = AccentNeon,
+                        indicatorColor = AccentNeon.copy(alpha = 0.15f),
+                        unselectedIconColor = TextSecondary,
+                        unselectedTextColor = TextSecondary
+                    )
+                )
+
+                NavigationBarItem(
+                    selected = currentTab == AppTab.CUENTAS,
+                    onClick = { currentTab = AppTab.CUENTAS },
+                    icon = { Icon(Icons.Default.AccountBalance, contentDescription = "Cuentas") },
+                    label = { Text("Cuentas", fontSize = 10.sp) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = AccentNeon,
+                        selectedTextColor = AccentNeon,
+                        indicatorColor = AccentNeon.copy(alpha = 0.15f),
+                        unselectedIconColor = TextSecondary,
+                        unselectedTextColor = TextSecondary
+                    )
+                )
+
+                NavigationBarItem(
+                    selected = currentTab == AppTab.TARJETAS,
+                    onClick = { currentTab = AppTab.TARJETAS },
+                    icon = { Icon(Icons.Default.CreditCard, contentDescription = "Tarjetas & MSI") },
+                    label = { Text("Tarjetas", fontSize = 10.sp) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = AccentSecondary,
+                        selectedTextColor = AccentSecondary,
+                        indicatorColor = AccentSecondary.copy(alpha = 0.15f),
                         unselectedIconColor = TextSecondary,
                         unselectedTextColor = TextSecondary
                     )
@@ -180,23 +263,9 @@ fun MainScreen(
                     icon = { Icon(Icons.AutoMirrored.Filled.ReceiptLong, contentDescription = "Movimientos") },
                     label = { Text("Movimientos", fontSize = 10.sp) },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = NeonEmerald,
-                        selectedTextColor = NeonEmerald,
-                        indicatorColor = NeonEmerald.copy(alpha = 0.15f),
-                        unselectedIconColor = TextSecondary,
-                        unselectedTextColor = TextSecondary
-                    )
-                )
-
-                NavigationBarItem(
-                    selected = currentTab == AppTab.TARJETAS,
-                    onClick = { currentTab = AppTab.TARJETAS },
-                    icon = { Icon(Icons.Default.CreditCard, contentDescription = "Tarjetas") },
-                    label = { Text("Tarjetas & MSI", fontSize = 10.sp) },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = NeonViolet,
-                        selectedTextColor = NeonViolet,
-                        indicatorColor = NeonViolet.copy(alpha = 0.15f),
+                        selectedIconColor = AccentNeon,
+                        selectedTextColor = AccentNeon,
+                        indicatorColor = AccentNeon.copy(alpha = 0.15f),
                         unselectedIconColor = TextSecondary,
                         unselectedTextColor = TextSecondary
                     )
@@ -208,35 +277,9 @@ fun MainScreen(
                     icon = { Icon(Icons.Default.CalendarMonth, contentDescription = "Calendario") },
                     label = { Text("Calendario", fontSize = 10.sp) },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = NeonEmerald,
-                        selectedTextColor = NeonEmerald,
-                        indicatorColor = NeonEmerald.copy(alpha = 0.15f),
-                        unselectedIconColor = TextSecondary,
-                        unselectedTextColor = TextSecondary
-                    )
-                )
-
-                NavigationBarItem(
-                    selected = currentTab == AppTab.NOTIFICACIONES,
-                    onClick = { currentTab = AppTab.NOTIFICACIONES },
-                    icon = {
-                        BadgedBox(
-                            badge = {
-                                if (!isNotificationPermissionGranted) {
-                                    Badge(containerColor = FintechWarning) {
-                                        Text("!", color = FintechBackground, fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                            }
-                        ) {
-                            Icon(Icons.Default.NotificationsActive, contentDescription = "Notificaciones")
-                        }
-                    },
-                    label = { Text("Notificaciones", fontSize = 10.sp) },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = NeonCyan,
-                        selectedTextColor = NeonCyan,
-                        indicatorColor = NeonCyan.copy(alpha = 0.15f),
+                        selectedIconColor = AccentNeon,
+                        selectedTextColor = AccentNeon,
+                        indicatorColor = AccentNeon.copy(alpha = 0.15f),
                         unselectedIconColor = TextSecondary,
                         unselectedTextColor = TextSecondary
                     )
@@ -282,15 +325,25 @@ fun MainScreen(
                     onNavigateToCards = { currentTab = AppTab.TARJETAS }
                 )
 
-                AppTab.MOVIMIENTOS -> TransactionsScreen(
+                AppTab.CUENTAS -> com.example.financeflow.ui.accounts.AccountsScreen(
+                    accounts = accounts,
+                    creditCards = creditCards,
                     transactions = transactions,
-                    onDeleteTransaction = { txId -> viewModel.deleteTransaction(txId) }
+                    onAddAccount = { name, bank, type, bal, last4, color, inv, yieldRate ->
+                        viewModel.addAccount(name, bank, type, bal, last4, color, inv, yieldRate)
+                    },
+                    onAddPocket = { accId, name, amt, target ->
+                        viewModel.addPocketToAccount(accId, name, amt, target)
+                    }
                 )
 
                 AppTab.TARJETAS -> CardsScreen(
                     creditCards = creditCards,
                     accounts = accounts,
                     installmentPurchases = installmentPurchases,
+                    onAddCard = { name, bank, last4, limit, debt, cutOff, due, linkedAccId, isDebit ->
+                        viewModel.addCreditCard(name, bank, last4, limit, debt, cutOff, due, linkedAccId, isDebit)
+                    },
                     onPayCardClick = { debitAccId, cardId, amount ->
                         viewModel.payCreditCard(debitAccId, cardId, amount)
                     },
@@ -305,6 +358,11 @@ fun MainScreen(
                     }
                 )
 
+                AppTab.MOVIMIENTOS -> TransactionsScreen(
+                    transactions = transactions,
+                    onDeleteTransaction = { txId -> viewModel.deleteTransaction(txId) }
+                )
+
                 AppTab.CALENDARIO -> CalendarScreen(
                     payrollConfig = payrollConfig,
                     creditCards = creditCards,
@@ -312,20 +370,6 @@ fun MainScreen(
                     onToggleBillPaid = { billId -> viewModel.toggleBillPaid(billId) },
                     onAddBillReminder = { title, amount, dueDay, category, provider ->
                         viewModel.addBillReminder(title, amount, dueDay, category, provider)
-                    }
-                )
-
-                AppTab.NOTIFICACIONES -> NotificationMonitorScreen(
-                    isPermissionGranted = isNotificationPermissionGranted,
-                    notificationLogs = notificationLogs,
-                    onOpenSettings = {
-                        BankNotificationListenerService.openNotificationAccessSettings(context)
-                    },
-                    onRefreshPermission = {
-                        viewModel.checkPermission()
-                    },
-                    onSimulateNotification = { pkg, title, text ->
-                        viewModel.simulateNotification(pkg, title, text)
                     }
                 )
             }

@@ -300,4 +300,41 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     fun restoreBackup(jsonString: String): Result<String> {
         return repository.restoreFromBackupJson(jsonString)
     }
+
+    // --- Cuentas Bancarias & Tarjetas ---
+    fun addAccount(
+        name: String,
+        bankName: String,
+        type: AccountType,
+        balance: Double,
+        last4Digits: String = "",
+        colorHex: String = "#7C4DFF",
+        investmentAmount: Double = 0.0,
+        annualYieldRate: Double = 0.0
+    ) {
+        repository.addAccount(name, bankName, type, balance, last4Digits, colorHex, investmentAmount, annualYieldRate)
+    }
+
+    fun addPocketToAccount(accountId: String, name: String, amount: Double, targetAmount: Double = 0.0) {
+        repository.addPocketToAccount(accountId, name, amount, targetAmount)
+    }
+
+    fun addCreditCard(
+        cardName: String,
+        bank: String,
+        last4Digits: String,
+        creditLimit: Double,
+        currentDebt: Double,
+        cutOffDay: Int,
+        paymentDueDay: Int,
+        linkedAccountId: String?,
+        isDebit: Boolean = false,
+        colorHex: String = "#FF1744"
+    ) {
+        repository.addCreditCard(cardName, bank, last4Digits, creditLimit, currentDebt, cutOffDay, paymentDueDay, linkedAccountId, isDebit, colorHex)
+    }
+
+    fun updatePayrollConfig(config: PayrollConfig) {
+        repository.updatePayrollConfig(config)
+    }
 }

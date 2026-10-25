@@ -45,23 +45,53 @@ fun CalendarScreen(
     var selectedDay by remember { mutableStateOf(todayDay) }
     var showAddBillDialog by remember { mutableStateOf(false) }
 
-    // Días de nómina
+    // Días de nómina calculados dinámicamente según la frecuencia configurada
     val payrollDays = remember(payrollConfig, maxDaysInMonth) {
         val list = mutableListOf<Int>()
-        list.add(payrollConfig.day1)
-        val day2 = if (payrollConfig.day2 == 0) maxDaysInMonth else payrollConfig.day2
-        list.add(day2)
-        list
+        when (payrollConfig.frequency) {
+            com.example.financeflow.domain.model.PayrollFrequency.QUINCENAL -> {
+                list.add(payrollConfig.day1)
+                val day2 = if (payrollConfig.day2 == 0) maxDaysInMonth else payrollConfig.day2
+                list.add(day2)
+            }
+            com.example.financeflow.domain.model.PayrollFrequency.MENSUAL -> {
+                val day = if (payrollConfig.day1 == 0) maxDaysInMonth else payrollConfig.day1
+                list.add(day)
+            }
+            com.example.financeflow.domain.model.PayrollFrequency.SEMANAL -> {
+                var d = if (payrollConfig.day1 in 1..7) payrollConfig.day1 else 5
+                while (d <= maxDaysInMonth) {
+                    list.add(d)
+                    d += 7
+                }
+            }
+            com.example.financeflow.domain.model.PayrollFrequency.CATORCENAL -> {
+                var d = if (payrollConfig.day1 in 1..14) payrollConfig.day1 else 14
+                while (d <= maxDaysInMonth) {
+                    list.add(d)
+                    d += 14
+                }
+            }
+            com.example.financeflow.domain.model.PayrollFrequency.PERSONALIZADO -> {
+                if (payrollConfig.customDays.isNotEmpty()) {
+                    list.addAll(payrollConfig.customDays)
+                } else {
+                    list.add(payrollConfig.day1)
+                }
+            }
+        }
+        val sorted = list.distinct().sorted()
+        if (sorted.isEmpty()) listOf(15, maxDaysInMonth) else sorted
     }
 
-    // Calcular días restantes para la próxima quincena
+    // Calcular días restantes para la próxima nómina
     val daysToNextPayroll = remember(todayDay, payrollDays) {
         val upcoming = payrollDays.filter { it >= todayDay }.minOrNull()
         if (upcoming != null) {
             upcoming - todayDay
         } else {
-            // Próximo mes día 15
-            (maxDaysInMonth - todayDay) + payrollDays.minOrNull()!!
+            val firstDay = payrollDays.minOrNull() ?: 15
+            (maxDaysInMonth - todayDay) + firstDay
         }
     }
 

@@ -35,7 +35,18 @@ sealed class UpdateState {
 
 class GitHubUpdateManager(private val context: Context) {
 
-    val currentVersion: String = "1.1"
+    val currentVersion: String
+        get() = try {
+            val pInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.packageManager.getPackageInfo(context.packageName, android.content.pm.PackageManager.PackageInfoFlags.of(0))
+            } else {
+                @Suppress("DEPRECATION")
+                context.packageManager.getPackageInfo(context.packageName, 0)
+            }
+            pInfo.versionName ?: "1.3"
+        } catch (_: Exception) {
+            "1.3"
+        }
 
     private val prefs = context.getSharedPreferences("finance0_updater_prefs", Context.MODE_PRIVATE)
 

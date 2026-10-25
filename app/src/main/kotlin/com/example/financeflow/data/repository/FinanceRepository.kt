@@ -867,7 +867,8 @@ class FinanceRepository private constructor(private val context: Context) {
         receivableId: String,
         targetAccountId: String,
         amountToCollect: Double,
-        isPartial: Boolean
+        isPartial: Boolean,
+        breakdownItemId: String? = null
     ) {
         val target = _receivables.value.find { it.id == receivableId } ?: return
         val acc = _accounts.value.find { it.id == targetAccountId }
@@ -876,32 +877,52 @@ class FinanceRepository private constructor(private val context: Context) {
         if (isPartial) {
             val remaining = (target.amount - amountToCollect).coerceAtLeast(0.0)
             val isFullyCollected = remaining <= 0.001
+
+            // Actualizar el concepto desglosado si fue seleccionado uno
+            val updatedBreakdown = target.breakdown.map { item ->
+                if (item.id == breakdownItemId) {
+                    item.copy(isPaid = true, paidDate = now)
+                } else item
+            }
+
             val updated = target.copy(
                 amount = remaining,
                 isCollected = isFullyCollected,
                 collectedDate = if (isFullyCollected) now else target.collectedDate,
-                depositAccountId = targetAccountId
+                depositAccountId = targetAccountId,
+                breakdown = updatedBreakdown
             )
             _receivables.value = _receivables.value.map { if (it.id == receivableId) updated else it }
+
+            val itemPaid = target.breakdown.find { it.id == breakdownItemId }
+            val txTitle = if (itemPaid != null) {
+                "Abono [${itemPaid.concept}]: ${target.debtorName}"
+            } else {
+                "Abono Parcial: ${target.debtorName} (${target.concept})"
+            }
 
             // Depositar monto parcial a la cuenta bancaria física
             addTransaction(
                 accountId = targetAccountId,
-                title = "Abono Parcial: ${target.debtorName} (${target.concept})",
+                title = txTitle,
                 amount = amountToCollect,
                 type = TransactionType.INCOME,
                 category = TransactionCategory.CUENTAS_POR_COBRAR,
-                note = "Abono parcial a cuenta por cobrar. Saldo restante: $${remaining}",
+                note = if (itemPaid != null) "Pago parcial por concepto '${itemPaid.concept}'. Saldo restante: $${remaining}"
+                       else "Abono parcial a cuenta por cobrar. Saldo restante: $${remaining}",
                 bankName = acc?.bankName,
                 updateAccountBalance = true
             )
         } else {
-            // Pago completo
+            // Pago completo: marcar todos los conceptos del desglose como pagados
             val amountCollected = target.amount
+            val updatedBreakdown = target.breakdown.map { it.copy(isPaid = true, paidDate = now) }
             val updated = target.copy(
+                amount = 0.0,
                 isCollected = true,
                 collectedDate = now,
-                depositAccountId = targetAccountId
+                depositAccountId = targetAccountId,
+                breakdown = updatedBreakdown
             )
             _receivables.value = _receivables.value.map { if (it.id == receivableId) updated else it }
 
@@ -937,6 +958,16 @@ class FinanceRepository private constructor(private val context: Context) {
         saveData()
     }
 
+    fun updateBreakdownItem(receivableId: String, itemId: String, concept: String, amount: Double) {
+        val target = _receivables.value.find { it.id == receivableId } ?: return
+        val updatedBreakdown = target.breakdown.map {
+            if (it.id == itemId) it.copy(concept = concept, amount = amount) else it
+        }
+        val updated = target.copy(breakdown = updatedBreakdown)
+        _receivables.value = _receivables.value.map { if (it.id == receivableId) updated else it }
+        saveData()
+    }
+
     fun removeBreakdownItem(receivableId: String, itemId: String) {
         val target = _receivables.value.find { it.id == receivableId } ?: return
         val updated = target.copy(breakdown = target.breakdown.filter { it.id != itemId })
@@ -967,7 +998,7 @@ class FinanceRepository private constructor(private val context: Context) {
 
     fun createBackupJson(): String {
         val backup = BackupData(
-            appVersion = "1.6",
+            appVersion = "1.6.1",
             backupDate = System.currentTimeMillis(),
             accounts = _accounts.value,
             transactions = _transactions.value,

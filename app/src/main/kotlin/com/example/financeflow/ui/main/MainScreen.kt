@@ -314,11 +314,14 @@ fun MainScreen(
                     onUpdateReceivable = { recId, debtor, concept, amount, note ->
                         viewModel.updateReceivable(recId, debtor, concept, amount, note)
                     },
-                    onCollectReceivable = { recId, targetAccId, amount, isPartial ->
-                        viewModel.collectReceivable(recId, targetAccId, amount, isPartial)
+                    onCollectReceivable = { recId, targetAccId, amount, isPartial, breakdownItemId ->
+                        viewModel.collectReceivable(recId, targetAccId, amount, isPartial, breakdownItemId)
                     },
                     onAddBreakdownItem = { recId, concept, amount ->
                         viewModel.addBreakdownItem(recId, concept, amount)
+                    },
+                    onUpdateBreakdownItem = { recId, itemId, concept, amount ->
+                        viewModel.updateBreakdownItem(recId, itemId, concept, amount)
                     },
                     onRemoveBreakdownItem = { recId, itemId ->
                         viewModel.removeBreakdownItem(recId, itemId)

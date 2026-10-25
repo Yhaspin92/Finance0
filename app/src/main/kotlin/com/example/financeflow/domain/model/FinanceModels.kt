@@ -155,7 +155,9 @@ data class NotificationLog(
 data class ReceivableBreakdownItem(
     val id: String = java.util.UUID.randomUUID().toString(),
     val concept: String,
-    val amount: Double
+    val amount: Double,
+    val isPaid: Boolean = false,
+    val paidDate: Long? = null
 )
 
 // Modelo para Cuentas por Cobrar (Dinero por recibir en el mes)
@@ -178,7 +180,7 @@ data class AccountReceivable(
 // Modelo unificado de Copia de Seguridad Local
 @Serializable
 data class BackupData(
-    val appVersion: String = "1.6",
+    val appVersion: String = "1.6.1",
     val backupDate: Long = System.currentTimeMillis(),
     val accounts: List<Account> = emptyList(),
     val transactions: List<Transaction> = emptyList(),

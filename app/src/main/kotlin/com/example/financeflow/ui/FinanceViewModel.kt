@@ -301,13 +301,18 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         receivableId: String,
         targetAccountId: String,
         amountToCollect: Double,
-        isPartial: Boolean
+        isPartial: Boolean,
+        breakdownItemId: String? = null
     ) {
-        repository.collectReceivable(receivableId, targetAccountId, amountToCollect, isPartial)
+        repository.collectReceivable(receivableId, targetAccountId, amountToCollect, isPartial, breakdownItemId)
     }
 
     fun addBreakdownItem(receivableId: String, concept: String, amount: Double) {
         repository.addBreakdownItem(receivableId, concept, amount)
+    }
+
+    fun updateBreakdownItem(receivableId: String, itemId: String, concept: String, amount: Double) {
+        repository.updateBreakdownItem(receivableId, itemId, concept, amount)
     }
 
     fun removeBreakdownItem(receivableId: String, itemId: String) {

@@ -574,6 +574,30 @@ class FinanceRepository private constructor(private val context: Context) {
         saveData()
     }
 
+    fun executeMasterReset() {
+        try {
+            if (accountsFile.exists()) accountsFile.delete()
+            if (transactionsFile.exists()) transactionsFile.delete()
+            if (creditCardsFile.exists()) creditCardsFile.delete()
+            if (billsFile.exists()) billsFile.delete()
+            if (payrollFile.exists()) payrollFile.delete()
+            if (notificationLogsFile.exists()) notificationLogsFile.delete()
+            if (installmentPurchasesFile.exists()) installmentPurchasesFile.delete()
+
+            _accounts.value = emptyList()
+            _transactions.value = emptyList()
+            _creditCards.value = emptyList()
+            _installmentPurchases.value = emptyList()
+            _billReminders.value = emptyList()
+            _notificationLogs.value = emptyList()
+            _payrollConfig.value = PayrollConfig()
+
+            saveData()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     companion object {
         @Volatile
         private var INSTANCE: FinanceRepository? = null

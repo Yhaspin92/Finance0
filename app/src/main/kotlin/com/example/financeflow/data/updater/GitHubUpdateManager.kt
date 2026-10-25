@@ -35,7 +35,7 @@ sealed class UpdateState {
 
 class GitHubUpdateManager(private val context: Context) {
 
-    val currentVersion: String = "1.0.0"
+    val currentVersion: String = "1.1"
 
     private val prefs = context.getSharedPreferences("finance0_updater_prefs", Context.MODE_PRIVATE)
 

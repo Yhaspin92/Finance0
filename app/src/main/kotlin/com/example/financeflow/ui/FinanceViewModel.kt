@@ -31,6 +31,26 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     val payrollConfig: StateFlow<PayrollConfig> = repository.payrollConfig
     val notificationLogs: StateFlow<List<NotificationLog>> = repository.notificationLogs
 
+    private val themePrefs = application.getSharedPreferences("finance0_theme_prefs", android.content.Context.MODE_PRIVATE)
+    private val initialTheme = try {
+        val saved = themePrefs.getString("theme_mode", com.example.financeflow.ui.theme.AppThemeMode.EMERALD_VIOLET.name)
+        com.example.financeflow.ui.theme.AppThemeMode.valueOf(saved ?: com.example.financeflow.ui.theme.AppThemeMode.EMERALD_VIOLET.name)
+    } catch (e: Exception) {
+        com.example.financeflow.ui.theme.AppThemeMode.EMERALD_VIOLET
+    }
+
+    private val _themeMode = MutableStateFlow(initialTheme)
+    val themeMode: StateFlow<com.example.financeflow.ui.theme.AppThemeMode> = _themeMode.asStateFlow()
+
+    fun setThemeMode(mode: com.example.financeflow.ui.theme.AppThemeMode) {
+        _themeMode.value = mode
+        themePrefs.edit().putString("theme_mode", mode.name).apply()
+    }
+
+    fun executeMasterReset() {
+        repository.executeMasterReset()
+    }
+
     private val _isNotificationPermissionGranted = MutableStateFlow(false)
     val isNotificationPermissionGranted: StateFlow<Boolean> = _isNotificationPermissionGranted.asStateFlow()
 

@@ -47,7 +47,7 @@ fun MainScreen(
     val context = LocalContext.current
     var currentTab by remember { mutableStateOf(AppTab.RESUMEN) }
     var showQuickActionDialog by remember { mutableStateOf(false) }
-    var showUpdateDialog by remember { mutableStateOf(false) }
+    var showSettingsScreen by remember { mutableStateOf(false) }
 
     val accounts by viewModel.accounts.collectAsStateWithLifecycle()
     val transactions by viewModel.transactions.collectAsStateWithLifecycle()
@@ -62,55 +62,61 @@ fun MainScreen(
     val isNotificationPermissionGranted by viewModel.isNotificationPermissionGranted.collectAsStateWithLifecycle()
     val updateState by viewModel.updateState.collectAsStateWithLifecycle()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(34.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(NeonEmerald),
-                            contentAlignment = Alignment.Center
-                        ) {
+    if (showSettingsScreen) {
+        com.example.financeflow.ui.settings.SettingsScreen(
+            viewModel = viewModel,
+            onBack = { showSettingsScreen = false }
+        )
+    } else {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(NeonEmerald),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.TrendingUp,
+                                    contentDescription = "Logo",
+                                    tint = FintechBackground,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "Finance0",
+                                    fontSize = 19.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = "Finanzas & Notificaciones",
+                                    fontSize = 11.sp,
+                                    color = NeonEmerald,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    },
+                    actions = {
+                        // Botón de Configuración (Temas, OTA, Borrado Maestro)
+                        IconButton(onClick = { showSettingsScreen = true }) {
                             Icon(
-                                Icons.AutoMirrored.Filled.TrendingUp,
-                                contentDescription = "Logo",
-                                tint = FintechBackground,
-                                modifier = Modifier.size(20.dp)
+                                Icons.Default.Settings,
+                                contentDescription = "Configuración",
+                                tint = TextPrimary,
+                                modifier = Modifier.size(22.dp)
                             )
                         }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Text(
-                                text = "Finance0",
-                                fontSize = 19.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = TextPrimary
-                            )
-                            Text(
-                                text = "Finanzas & Notificaciones",
-                                fontSize = 11.sp,
-                                color = NeonEmerald,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                    }
-                },
-                actions = {
-                    // Botón de Actualizaciones OTA vía GitHub
-                    IconButton(onClick = { showUpdateDialog = true }) {
-                        Icon(
-                            Icons.Default.CloudSync,
-                            contentDescription = "Actualizaciones GitHub",
-                            tint = NeonCyan,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
 
-                    // Botón de Nuevo Movimiento
-                    IconButton(onClick = { showQuickActionDialog = true }) {
+                        // Botón de Nuevo Movimiento
+                        IconButton(onClick = { showQuickActionDialog = true }) {
                         Box(
                             modifier = Modifier
                                 .size(34.dp)
@@ -313,197 +319,5 @@ fun MainScreen(
             }
         )
     }
-
-    // Modal de Actualizaciones OTA vía GitHub
-    if (showUpdateDialog) {
-        var githubRepo by remember { mutableStateOf(viewModel.updateManager.configuredRepo) }
-        var githubToken by remember { mutableStateOf(viewModel.updateManager.personalAccessToken) }
-
-        AlertDialog(
-            onDismissRequest = { showUpdateDialog = false },
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.CloudSync, contentDescription = "GitHub", tint = NeonCyan)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Actualizaciones de Finance0",
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-                }
-            },
-            text = {
-                Column {
-                    Text(
-                        text = "Versión instalada: v${viewModel.updateManager.currentVersion}",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = NeonEmerald
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Text(
-                        text = "Repositorio GitHub para actualizaciones OTA:",
-                        fontSize = 12.sp,
-                        color = TextSecondary
-                    )
-                    OutlinedTextField(
-                        value = githubRepo,
-                        onValueChange = {
-                            githubRepo = it
-                            viewModel.updateManager.configuredRepo = it
-                        },
-                        singleLine = true,
-                        placeholder = { Text("usuario/Finance0") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Text(
-                        text = "GitHub Token (Opcional, solo si el repo es privado):",
-                        fontSize = 11.sp,
-                        color = TextMuted
-                    )
-                    OutlinedTextField(
-                        value = githubToken,
-                        onValueChange = {
-                            githubToken = it
-                            viewModel.updateManager.personalAccessToken = it
-                        },
-                        singleLine = true,
-                        placeholder = { Text("ghp_xxxx...") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    when (val state = updateState) {
-                        is UpdateState.Idle -> {
-                            Text(
-                                text = "Presiona el botón para comprobar si hay nuevas versiones publicadas en GitHub Releases.",
-                                fontSize = 12.sp,
-                                color = TextMuted
-                            )
-                        }
-                        is UpdateState.Checking -> {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(18.dp),
-                                    color = NeonCyan,
-                                    strokeWidth = 2.dp
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Consultando GitHub Releases...", fontSize = 12.sp, color = NeonCyan)
-                            }
-                        }
-                        is UpdateState.UpToDate -> {
-                            Text(
-                                text = "✅ Finance0 está al día (v${state.currentVersion}). No hay versiones pendientes.",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = NeonEmerald
-                            )
-                        }
-                        is UpdateState.UpdateAvailable -> {
-                            Column {
-                                Text(
-                                    text = "🚀 ¡Nueva versión disponible: v${state.release.tagName}!",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = NeonCyan
-                                )
-                                Text(
-                                    text = state.release.body,
-                                    fontSize = 11.sp,
-                                    color = TextSecondary,
-                                    modifier = Modifier.padding(vertical = 4.dp)
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
-                                if (state.release.apkDownloadUrl != null) {
-                                    Button(
-                                        onClick = { viewModel.downloadAndInstallApk(state.release.apkDownloadUrl, githubToken) },
-                                        colors = ButtonDefaults.buttonColors(containerColor = NeonEmerald)
-                                    ) {
-                                        Icon(Icons.Default.Download, contentDescription = "Descargar", modifier = Modifier.size(16.dp))
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Descargar e Instalar APK", color = FintechBackground, fontWeight = FontWeight.Bold)
-                                    }
-                                } else {
-                                    Text(
-                                        text = "El release no contiene un archivo .apk adjunto.",
-                                        fontSize = 11.sp,
-                                        color = FintechWarning
-                                    )
-                                }
-                            }
-                        }
-                        is UpdateState.Downloading -> {
-                            Column {
-                                Text("Descargando actualización: ${state.progress}%", fontSize = 12.sp, color = NeonCyan)
-                                Spacer(modifier = Modifier.height(4.dp))
-                                LinearProgressIndicator(
-                                    progress = { state.progress / 100f },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    color = NeonCyan
-                                )
-                            }
-                        }
-                        is UpdateState.ReadyToInstall -> {
-                            Text(
-                                text = "Descarga completada. Abriendo instalador de Android...",
-                                fontSize = 12.sp,
-                                color = NeonEmerald
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Button(
-                                onClick = { viewModel.promptInstallApk(state.apkFile) },
-                                colors = ButtonDefaults.buttonColors(containerColor = NeonEmerald)
-                            ) {
-                                Text("Instalar APK", color = FintechBackground, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                        is UpdateState.NeedsInstallPermission -> {
-                            Column {
-                                Text(
-                                    text = "⚠️ Se requiere autorizar la instalación de fuentes desconocidas en Android.",
-                                    fontSize = 12.sp,
-                                    color = FintechWarning,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Button(
-                                    onClick = { viewModel.promptInstallApk(state.apkFile) },
-                                    colors = ButtonDefaults.buttonColors(containerColor = NeonEmerald)
-                                ) {
-                                    Text("Autorizar e Instalar", color = FintechBackground, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                        }
-                        is UpdateState.Error -> {
-                            Text(
-                                text = state.message,
-                                fontSize = 12.sp,
-                                color = FintechExpense
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = { viewModel.checkForUpdates(githubRepo, githubToken) },
-                    colors = ButtonDefaults.buttonColors(containerColor = NeonCyan)
-                ) {
-                    Text("Comprobar Ahora", color = FintechBackground, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showUpdateDialog = false }) {
-                    Text("Cerrar", color = TextSecondary)
-                }
-            },
-            containerColor = FintechSurface
-        )
     }
 }

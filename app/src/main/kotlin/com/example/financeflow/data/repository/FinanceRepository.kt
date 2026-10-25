@@ -443,7 +443,8 @@ class FinanceRepository private constructor(private val context: Context) {
         note: String = "",
         rawNotificationText: String? = null,
         isAutoDetected: Boolean = false,
-        bankName: String? = null
+        bankName: String? = null,
+        updateAccountBalance: Boolean = true
     ): Transaction {
         val tx = Transaction(
             id = UUID.randomUUID().toString(),
@@ -460,62 +461,64 @@ class FinanceRepository private constructor(private val context: Context) {
             bankName = bankName
         )
 
-        // Actualizar saldos de cuentas
-        val currentAccounts = _accounts.value.toMutableList()
-        val sourceIndex = currentAccounts.indexOfFirst { it.id == accountId }
+        if (updateAccountBalance) {
+            // Actualizar saldos de cuentas
+            val currentAccounts = _accounts.value.toMutableList()
+            val sourceIndex = currentAccounts.indexOfFirst { it.id == accountId }
 
-        when (type) {
-            TransactionType.EXPENSE -> {
-                if (sourceIndex != -1) {
-                    val acc = currentAccounts[sourceIndex]
-                    val newBalance = if (acc.type == AccountType.CREDIT) {
-                        acc.balance + amount // Más deuda
-                    } else {
-                        acc.balance - amount
-                    }
-                    currentAccounts[sourceIndex] = acc.copy(balance = newBalance)
-                    updateCreditCardDebt(acc.id, newBalance)
-                }
-            }
-            TransactionType.INCOME -> {
-                if (sourceIndex != -1) {
-                    val acc = currentAccounts[sourceIndex]
-                    val newBalance = acc.balance + amount
-                    currentAccounts[sourceIndex] = acc.copy(balance = newBalance)
-                }
-            }
-            TransactionType.TRANSFER -> {
-                if (sourceIndex != -1) {
-                    val src = currentAccounts[sourceIndex]
-                    currentAccounts[sourceIndex] = src.copy(balance = src.balance - amount)
-                }
-                if (targetAccountId != null) {
-                    val targetIndex = currentAccounts.indexOfFirst { it.id == targetAccountId }
-                    if (targetIndex != -1) {
-                        val tgt = currentAccounts[targetIndex]
-                        currentAccounts[targetIndex] = tgt.copy(balance = tgt.balance + amount)
+            when (type) {
+                TransactionType.EXPENSE -> {
+                    if (sourceIndex != -1) {
+                        val acc = currentAccounts[sourceIndex]
+                        val newBalance = if (acc.type == AccountType.CREDIT) {
+                            acc.balance + amount // Más deuda
+                        } else {
+                            acc.balance - amount
+                        }
+                        currentAccounts[sourceIndex] = acc.copy(balance = newBalance)
+                        updateCreditCardDebt(acc.id, newBalance)
                     }
                 }
-            }
-            TransactionType.CREDIT_CARD_PAYMENT -> {
-                // Se deduce del origen (débito) y se abona a la tarjeta
-                if (sourceIndex != -1) {
-                    val src = currentAccounts[sourceIndex]
-                    currentAccounts[sourceIndex] = src.copy(balance = src.balance - amount)
+                TransactionType.INCOME -> {
+                    if (sourceIndex != -1) {
+                        val acc = currentAccounts[sourceIndex]
+                        val newBalance = acc.balance + amount
+                        currentAccounts[sourceIndex] = acc.copy(balance = newBalance)
+                    }
                 }
-                if (targetAccountId != null) {
-                    val targetIndex = currentAccounts.indexOfFirst { it.id == targetAccountId }
-                    if (targetIndex != -1) {
-                        val tgt = currentAccounts[targetIndex]
-                        val newDebt = (tgt.balance - amount).coerceAtLeast(0.0)
-                        currentAccounts[targetIndex] = tgt.copy(balance = newDebt)
-                        updateCreditCardDebt(tgt.id, newDebt)
+                TransactionType.TRANSFER -> {
+                    if (sourceIndex != -1) {
+                        val src = currentAccounts[sourceIndex]
+                        currentAccounts[sourceIndex] = src.copy(balance = src.balance - amount)
+                    }
+                    if (targetAccountId != null) {
+                        val targetIndex = currentAccounts.indexOfFirst { it.id == targetAccountId }
+                        if (targetIndex != -1) {
+                            val tgt = currentAccounts[targetIndex]
+                            currentAccounts[targetIndex] = tgt.copy(balance = tgt.balance + amount)
+                        }
+                    }
+                }
+                TransactionType.CREDIT_CARD_PAYMENT -> {
+                    // Se deduce del origen (débito) y se abona a la tarjeta
+                    if (sourceIndex != -1) {
+                        val src = currentAccounts[sourceIndex]
+                        currentAccounts[sourceIndex] = src.copy(balance = src.balance - amount)
+                    }
+                    if (targetAccountId != null) {
+                        val targetIndex = currentAccounts.indexOfFirst { it.id == targetAccountId }
+                        if (targetIndex != -1) {
+                            val tgt = currentAccounts[targetIndex]
+                            val newDebt = (tgt.balance - amount).coerceAtLeast(0.0)
+                            currentAccounts[targetIndex] = tgt.copy(balance = newDebt)
+                            updateCreditCardDebt(tgt.id, newDebt)
+                        }
                     }
                 }
             }
+            _accounts.value = currentAccounts
         }
 
-        _accounts.value = currentAccounts
         _transactions.value = listOf(tx) + _transactions.value
         saveData()
         return tx
@@ -655,6 +658,20 @@ class FinanceRepository private constructor(private val context: Context) {
             note = note
         )
         _installmentPurchases.value = listOf(item) + _installmentPurchases.value
+
+        // Registrar en Movimientos Recientes para que aparezca cualquier cambio de cualquier rubro
+        val defaultAcc = _accounts.value.firstOrNull { it.id == cardId } ?: _accounts.value.firstOrNull()
+        addTransaction(
+            accountId = defaultAcc?.id ?: cardId,
+            title = "Compra MSI: $title ($totalMonths meses)",
+            amount = totalAmount,
+            type = TransactionType.EXPENSE,
+            category = TransactionCategory.MSI_COMPRA,
+            note = "Compra a meses sin intereses registrada. ${note}".trim(),
+            bankName = "MSI",
+            updateAccountBalance = false
+        )
+
         saveData()
         return item
     }
@@ -670,7 +687,21 @@ class FinanceRepository private constructor(private val context: Context) {
     }
 
     fun deleteInstallmentPurchase(installmentId: String) {
+        val target = _installmentPurchases.value.find { it.id == installmentId }
         _installmentPurchases.value = _installmentPurchases.value.filter { it.id != installmentId }
+        if (target != null) {
+            val defaultAcc = _accounts.value.firstOrNull { it.id == target.cardId } ?: _accounts.value.firstOrNull()
+            addTransaction(
+                accountId = defaultAcc?.id ?: target.cardId,
+                title = "Cancelación MSI: ${target.title}",
+                amount = target.totalAmount,
+                type = TransactionType.INCOME,
+                category = TransactionCategory.MSI_COMPRA,
+                note = "Plan de MSI cancelado/liquidado.",
+                bankName = "MSI",
+                updateAccountBalance = false
+            )
+        }
         saveData()
     }
 
@@ -761,7 +792,7 @@ class FinanceRepository private constructor(private val context: Context) {
         return newCard
     }
 
-    // --- Módulo Cuentas por Cobrar (Dinero por recibir en el mes, no disponible en físico) ---
+    // --- Módulo Cuentas por Cobrar (Dinero por recibir en el mes) ---
 
     fun addReceivable(
         debtorName: String,
@@ -769,46 +800,166 @@ class FinanceRepository private constructor(private val context: Context) {
         amount: Double,
         dueDayOfMonth: Int = 1,
         note: String = ""
-    ) {
+    ): AccountReceivable {
         val newRec = AccountReceivable(
             id = UUID.randomUUID().toString(),
             debtorName = debtorName,
             concept = concept,
             amount = amount,
+            initialAmount = amount,
             dueDayOfMonth = dueDayOfMonth,
             dueDate = System.currentTimeMillis(),
             isCollected = false,
             note = note
         )
         _receivables.value = _receivables.value + newRec
+
+        // Registrar en Movimientos Recientes para que aparezca cualquier cambio de cualquier rubro
+        val defaultAcc = _accounts.value.firstOrNull()
+        addTransaction(
+            accountId = defaultAcc?.id ?: "receivable_acc",
+            title = "Por Cobrar: $debtorName - $concept",
+            amount = amount,
+            type = TransactionType.INCOME,
+            category = TransactionCategory.CUENTAS_POR_COBRAR,
+            note = "Cuenta por cobrar registrada. ${note}".trim(),
+            bankName = "Por Cobrar",
+            updateAccountBalance = false
+        )
+
+        saveData()
+        return newRec
+    }
+
+    fun updateReceivable(
+        receivableId: String,
+        debtorName: String,
+        concept: String,
+        amount: Double,
+        note: String
+    ) {
+        val target = _receivables.value.find { it.id == receivableId } ?: return
+        val updated = target.copy(
+            debtorName = debtorName,
+            concept = concept,
+            amount = amount,
+            note = note
+        )
+        _receivables.value = _receivables.value.map { if (it.id == receivableId) updated else it }
+
+        // Registrar en Movimientos Recientes
+        val defaultAcc = _accounts.value.firstOrNull()
+        addTransaction(
+            accountId = defaultAcc?.id ?: "receivable_acc",
+            title = "Edición Por Cobrar: $debtorName - $concept",
+            amount = amount,
+            type = TransactionType.INCOME,
+            category = TransactionCategory.CUENTAS_POR_COBRAR,
+            note = "Modificación de cuenta por cobrar. Anterior: ${target.debtorName} ($${target.amount})",
+            bankName = "Por Cobrar",
+            updateAccountBalance = false
+        )
+
+        saveData()
+    }
+
+    fun collectReceivable(
+        receivableId: String,
+        targetAccountId: String,
+        amountToCollect: Double,
+        isPartial: Boolean
+    ) {
+        val target = _receivables.value.find { it.id == receivableId } ?: return
+        val acc = _accounts.value.find { it.id == targetAccountId }
+        val now = System.currentTimeMillis()
+
+        if (isPartial) {
+            val remaining = (target.amount - amountToCollect).coerceAtLeast(0.0)
+            val isFullyCollected = remaining <= 0.001
+            val updated = target.copy(
+                amount = remaining,
+                isCollected = isFullyCollected,
+                collectedDate = if (isFullyCollected) now else target.collectedDate,
+                depositAccountId = targetAccountId
+            )
+            _receivables.value = _receivables.value.map { if (it.id == receivableId) updated else it }
+
+            // Depositar monto parcial a la cuenta bancaria física
+            addTransaction(
+                accountId = targetAccountId,
+                title = "Abono Parcial: ${target.debtorName} (${target.concept})",
+                amount = amountToCollect,
+                type = TransactionType.INCOME,
+                category = TransactionCategory.CUENTAS_POR_COBRAR,
+                note = "Abono parcial a cuenta por cobrar. Saldo restante: $${remaining}",
+                bankName = acc?.bankName,
+                updateAccountBalance = true
+            )
+        } else {
+            // Pago completo
+            val amountCollected = target.amount
+            val updated = target.copy(
+                isCollected = true,
+                collectedDate = now,
+                depositAccountId = targetAccountId
+            )
+            _receivables.value = _receivables.value.map { if (it.id == receivableId) updated else it }
+
+            // Depositar monto total a la cuenta bancaria física
+            addTransaction(
+                accountId = targetAccountId,
+                title = "Cobro Completo: ${target.debtorName} (${target.concept})",
+                amount = amountCollected,
+                type = TransactionType.INCOME,
+                category = TransactionCategory.CUENTAS_POR_COBRAR,
+                note = "Cuenta por cobrar liquidada en su totalidad. ${target.note}".trim(),
+                bankName = acc?.bankName,
+                updateAccountBalance = true
+            )
+        }
         saveData()
     }
 
     fun markReceivableAsCollected(receivableId: String, targetAccountId: String) {
         val target = _receivables.value.find { it.id == receivableId } ?: return
-        val updated = target.copy(
-            isCollected = true,
-            collectedDate = System.currentTimeMillis(),
-            depositAccountId = targetAccountId
-        )
-        _receivables.value = _receivables.value.map { if (it.id == receivableId) updated else it }
+        collectReceivable(receivableId, targetAccountId, target.amount, isPartial = false)
+    }
 
-        // Al cobrarse en físico, se registra como ingreso en la cuenta receptora seleccionada
-        val acc = _accounts.value.find { it.id == targetAccountId }
-        addTransaction(
-            accountId = targetAccountId,
-            title = "Cobro: ${target.debtorName} (${target.concept})",
-            amount = target.amount,
-            type = TransactionType.INCOME,
-            category = TransactionCategory.OTROS,
-            note = "Cobro registrado de cuenta por cobrar. ${target.note}".trim(),
-            bankName = acc?.bankName
+    fun addBreakdownItem(receivableId: String, concept: String, amount: Double) {
+        val target = _receivables.value.find { it.id == receivableId } ?: return
+        val newItem = ReceivableBreakdownItem(
+            id = UUID.randomUUID().toString(),
+            concept = concept,
+            amount = amount
         )
+        val updated = target.copy(breakdown = target.breakdown + newItem)
+        _receivables.value = _receivables.value.map { if (it.id == receivableId) updated else it }
+        saveData()
+    }
+
+    fun removeBreakdownItem(receivableId: String, itemId: String) {
+        val target = _receivables.value.find { it.id == receivableId } ?: return
+        val updated = target.copy(breakdown = target.breakdown.filter { it.id != itemId })
+        _receivables.value = _receivables.value.map { if (it.id == receivableId) updated else it }
         saveData()
     }
 
     fun deleteReceivable(receivableId: String) {
+        val target = _receivables.value.find { it.id == receivableId }
         _receivables.value = _receivables.value.filter { it.id != receivableId }
+        if (target != null) {
+            val defaultAcc = _accounts.value.firstOrNull()
+            addTransaction(
+                accountId = defaultAcc?.id ?: "receivable_acc",
+                title = "Cancelado Por Cobrar: ${target.debtorName} - ${target.concept}",
+                amount = target.amount,
+                type = TransactionType.EXPENSE,
+                category = TransactionCategory.CUENTAS_POR_COBRAR,
+                note = "Cuenta por cobrar cancelada / eliminada.",
+                bankName = "Por Cobrar",
+                updateAccountBalance = false
+            )
+        }
         saveData()
     }
 
@@ -816,7 +967,7 @@ class FinanceRepository private constructor(private val context: Context) {
 
     fun createBackupJson(): String {
         val backup = BackupData(
-            appVersion = "1.2",
+            appVersion = "1.6",
             backupDate = System.currentTimeMillis(),
             accounts = _accounts.value,
             transactions = _transactions.value,

@@ -13,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -26,6 +27,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.financeflow.domain.model.*
 import com.example.financeflow.ui.components.Formatters
 import com.example.financeflow.ui.components.GlassCard
@@ -48,8 +51,11 @@ fun DashboardScreen(
     isBannerDismissed: Boolean,
     onDismissNotificationBanner: () -> Unit,
     onOpenNotificationSettings: () -> Unit,
-    onAddReceivable: (debtorName: String, concept: String, amount: Double, dueDayOfMonth: Int, note: String) -> Unit,
-    onMarkReceivableCollected: (receivableId: String, targetAccountId: String) -> Unit,
+    onAddReceivable: (debtorName: String, concept: String, amount: Double, note: String) -> Unit,
+    onUpdateReceivable: (receivableId: String, debtorName: String, concept: String, amount: Double, note: String) -> Unit,
+    onCollectReceivable: (receivableId: String, targetAccountId: String, amountToCollect: Double, isPartial: Boolean) -> Unit,
+    onAddBreakdownItem: (receivableId: String, concept: String, amount: Double) -> Unit,
+    onRemoveBreakdownItem: (receivableId: String, itemId: String) -> Unit,
     onDeleteReceivable: (receivableId: String) -> Unit,
     onQuickActionClick: () -> Unit,
     onNavigateToTransactions: () -> Unit,
@@ -58,6 +64,8 @@ fun DashboardScreen(
 ) {
     var showAddReceivableDialog by remember { mutableStateOf(false) }
     var receivableToCollect by remember { mutableStateOf<AccountReceivable?>(null) }
+    var receivableToEdit by remember { mutableStateOf<AccountReceivable?>(null) }
+    var selectedReceivableForDetail by remember { mutableStateOf<AccountReceivable?>(null) }
     var showReceivablesSubScreen by remember { mutableStateOf(false) }
 
     val coroutineScope = rememberCoroutineScope()
@@ -96,7 +104,7 @@ fun DashboardScreen(
                         color = TextPrimary
                     )
                     Text(
-                        text = "Dinero por recibir en el mes (no físico aún)",
+                        text = "Dinero por recibir en el mes",
                         fontSize = 11.sp,
                         color = TextSecondary
                     )
@@ -163,12 +171,6 @@ fun DashboardScreen(
                                 fontWeight = FontWeight.ExtraBold,
                                 color = FintechWarning
                             )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "💡 Este dinero suma a tu total proyectado del mes. Al marcarlo como cobrado, se sumará directamente a tu cuenta bancaria seleccionada.",
-                                fontSize = 11.sp,
-                                color = TextMuted
-                            )
                         }
                     }
                 }
@@ -213,9 +215,12 @@ fun DashboardScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
+                                // Parte izquierda interactiva: Abre ventana de detalle al tocar
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { selectedReceivableForDetail = rec }
                                 ) {
                                     Box(
                                         modifier = Modifier
@@ -240,20 +245,20 @@ fun DashboardScreen(
                                             fontSize = 14.sp
                                         )
                                         Text(
-                                            text = "${rec.concept} • Previsto: día ${rec.dueDayOfMonth}",
+                                            text = rec.concept,
                                             color = TextSecondary,
                                             fontSize = 11.sp
                                         )
                                         if (!isDone) {
                                             Text(
-                                                text = "⚠️ Pendiente (No en físico aún)",
+                                                text = "⚠️ Pendiente",
                                                 color = FintechWarning,
                                                 fontSize = 10.sp,
                                                 fontWeight = FontWeight.Medium
                                             )
                                         } else {
                                             Text(
-                                                text = "✅ Cobrado e ingresado a saldo",
+                                                text = "✅ Cobrado",
                                                 color = NeonEmerald,
                                                 fontSize = 10.sp,
                                                 fontWeight = FontWeight.Medium
@@ -604,7 +609,6 @@ fun DashboardScreen(
                                                         fontWeight = FontWeight.Bold,
                                                         color = FintechWarning
                                                     )
-                                                    Text("No físico aún", fontSize = 9.sp, color = FintechWarning.copy(alpha = 0.8f))
                                                 }
                                             }
                                         }
@@ -905,12 +909,15 @@ fun DashboardScreen(
         }
     }
 
-    // Modal: Agregar Cuenta por Cobrar
+    // =========================================================================
+    // MODALES Y VENTANAS FLOTANTES DE CUENTAS POR COBRAR
+    // =========================================================================
+
+    // 1. Modal: Agregar Cuenta por Cobrar (Sin día previsto)
     if (showAddReceivableDialog) {
         var debtorName by remember { mutableStateOf("") }
         var concept by remember { mutableStateOf("") }
         var amountText by remember { mutableStateOf("") }
-        var dueDayText by remember { mutableStateOf("15") }
         var note by remember { mutableStateOf("") }
 
         AlertDialog(
@@ -921,7 +928,7 @@ fun DashboardScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        text = "Registra un préstamo o cobro previsto para este mes. Se sumará a tu proyección mensual, pero no como dinero en físico aún.",
+                        text = "Registra un cobro previsto para este mes. Se sumará a tu proyección mensual.",
                         fontSize = 12.sp,
                         color = TextSecondary
                     )
@@ -949,14 +956,6 @@ fun DashboardScreen(
                     )
 
                     OutlinedTextField(
-                        value = dueDayText,
-                        onValueChange = { dueDayText = it },
-                        label = { Text("Día previsto del mes para cobrar (1-31)") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    OutlinedTextField(
                         value = note,
                         onValueChange = { note = it },
                         label = { Text("Nota adicional (opcional)") },
@@ -968,9 +967,8 @@ fun DashboardScreen(
                 Button(
                     onClick = {
                         val amount = amountText.toDoubleOrNull() ?: 0.0
-                        val day = dueDayText.toIntOrNull() ?: 1
                         if (debtorName.isNotBlank() && amount > 0) {
-                            onAddReceivable(debtorName.trim(), concept.trim(), amount, day, note.trim())
+                            onAddReceivable(debtorName.trim(), concept.trim(), amount, note.trim())
                             showAddReceivableDialog = false
                         }
                     },
@@ -987,24 +985,152 @@ fun DashboardScreen(
         )
     }
 
-    // Modal: Marcar como Cobrado en Físico
+    // 2. Modal: Editar Cuenta por Cobrar
+    if (receivableToEdit != null) {
+        val target = receivableToEdit!!
+        var editDebtor by remember(target.id) { mutableStateOf(target.debtorName) }
+        var editConcept by remember(target.id) { mutableStateOf(target.concept) }
+        var editAmountText by remember(target.id) { mutableStateOf(target.amount.toString()) }
+        var editNote by remember(target.id) { mutableStateOf(target.note) }
+
+        AlertDialog(
+            onDismissRequest = { receivableToEdit = null },
+            title = {
+                Text("Editar Cuenta por Cobrar", fontWeight = FontWeight.Bold, color = TextPrimary)
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = editDebtor,
+                        onValueChange = { editDebtor = it },
+                        label = { Text("¿Quién te debe?") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = editConcept,
+                        onValueChange = { editConcept = it },
+                        label = { Text("Concepto") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = editAmountText,
+                        onValueChange = { editAmountText = it },
+                        label = { Text("Monto por cobrar ($)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = editNote,
+                        onValueChange = { editNote = it },
+                        label = { Text("Nota adicional") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val amt = editAmountText.toDoubleOrNull() ?: 0.0
+                        if (editDebtor.isNotBlank() && amt > 0) {
+                            onUpdateReceivable(target.id, editDebtor.trim(), editConcept.trim(), amt, editNote.trim())
+                            receivableToEdit = null
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentNeon)
+                ) {
+                    Text("Guardar Cambios", color = Color.Black, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { receivableToEdit = null }) {
+                    Text("Cancelar", color = TextSecondary)
+                }
+            }
+        )
+    }
+
+    // 3. Modal: Cobro (Pago Parcial o Pago Completo)
     if (receivableToCollect != null) {
         val rec = receivableToCollect!!
         val liquidAccounts = accounts.filter { it.type == AccountType.DEBIT || it.type == AccountType.CASH }
         var selectedAccountId by remember { mutableStateOf(liquidAccounts.firstOrNull()?.id ?: "") }
+        var isPartialPayment by remember { mutableStateOf(false) }
+        var partialAmountText by remember { mutableStateOf("") }
 
         AlertDialog(
             onDismissRequest = { receivableToCollect = null },
             title = {
-                Text("Confirmar Cobro en Físico", fontWeight = FontWeight.Bold, color = TextPrimary)
+                Text("Cobrar Cuenta", fontWeight = FontWeight.Bold, color = TextPrimary)
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        text = "¿A qué cuenta física ingresó el pago de ${Formatters.formatCurrency(rec.amount)} de ${rec.debtorName}?",
+                        text = "${rec.debtorName} • ${rec.concept}",
                         color = TextPrimary,
-                        fontSize = 13.sp
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
                     )
+                    Text(
+                        text = "Saldo total por cobrar: ${Formatters.formatCurrency(rec.amount)}",
+                        color = AccentNeon,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text("Selecciona el tipo de pago:", fontSize = 12.sp, color = TextSecondary)
+
+                    // Selector: Pago Completo o Pago Parcial
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChip(
+                            selected = !isPartialPayment,
+                            onClick = { isPartialPayment = false },
+                            label = { Text("Pago Completo", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                            modifier = Modifier.weight(1f),
+                            leadingIcon = if (!isPartialPayment) {
+                                { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
+                            } else null
+                        )
+
+                        FilterChip(
+                            selected = isPartialPayment,
+                            onClick = { isPartialPayment = true },
+                            label = { Text("Pago Parcial", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                            modifier = Modifier.weight(1f),
+                            leadingIcon = if (isPartialPayment) {
+                                { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
+                            } else null
+                        )
+                    }
+
+                    if (isPartialPayment) {
+                        OutlinedTextField(
+                            value = partialAmountText,
+                            onValueChange = { partialAmountText = it },
+                            label = { Text("Monto abonado ($)") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        val parsedPartial = partialAmountText.toDoubleOrNull() ?: 0.0
+                        val remaining = (rec.amount - parsedPartial).coerceAtLeast(0.0)
+                        Text(
+                            text = if (parsedPartial > rec.amount) "⚠️ El abono excede el saldo restante"
+                            else "Saldo restante tras este abono: ${Formatters.formatCurrency(remaining)}",
+                            fontSize = 11.sp,
+                            color = if (parsedPartial > rec.amount) FintechExpense else NeonEmerald,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text("¿A qué cuenta física ingresa el dinero?", fontSize = 12.sp, color = TextSecondary)
 
                     liquidAccounts.forEach { acc ->
                         val isSelected = selectedAccountId == acc.id
@@ -1014,7 +1140,7 @@ fun DashboardScreen(
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(if (isSelected) AccentNeon.copy(alpha = 0.15f) else FintechSurface)
                                 .clickable { selectedAccountId = acc.id }
-                                .padding(12.dp),
+                                .padding(10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             RadioButton(
@@ -1024,8 +1150,8 @@ fun DashboardScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Column {
-                                Text(acc.name, fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 13.sp)
-                                Text("${acc.bankName} • Saldo: ${Formatters.formatCurrency(acc.balance)}", color = TextSecondary, fontSize = 11.sp)
+                                Text(acc.name, fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 12.sp)
+                                Text("${acc.bankName} • Saldo: ${Formatters.formatCurrency(acc.balance)}", color = TextSecondary, fontSize = 10.sp)
                             }
                         }
                     }
@@ -1035,13 +1161,21 @@ fun DashboardScreen(
                 Button(
                     onClick = {
                         if (selectedAccountId.isNotBlank()) {
-                            onMarkReceivableCollected(rec.id, selectedAccountId)
-                            receivableToCollect = null
+                            if (isPartialPayment) {
+                                val amt = partialAmountText.toDoubleOrNull() ?: 0.0
+                                if (amt > 0 && amt <= rec.amount) {
+                                    onCollectReceivable(rec.id, selectedAccountId, amt, true)
+                                    receivableToCollect = null
+                                }
+                            } else {
+                                onCollectReceivable(rec.id, selectedAccountId, rec.amount, false)
+                                receivableToCollect = null
+                            }
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = NeonEmerald)
                 ) {
-                    Text("Confirmar Depósito", color = FintechBackground, fontWeight = FontWeight.Bold)
+                    Text("Confirmar Cobro", color = FintechBackground, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -1050,5 +1184,398 @@ fun DashboardScreen(
                 }
             }
         )
+    }
+
+    // 4. Ventana Flotante de Detalle Interactivo de Cuenta por Cobrar (Con Desglose y Borrar en la esquina)
+    if (selectedReceivableForDetail != null) {
+        val currentRec = receivables.find { it.id == selectedReceivableForDetail?.id }
+        if (currentRec == null) {
+            selectedReceivableForDetail = null
+        } else {
+            var isBreakdownOpen by remember { mutableStateOf(false) }
+            var newConceptText by remember { mutableStateOf("") }
+            var newAmountText by remember { mutableStateOf("") }
+            var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+
+            Dialog(
+                onDismissRequest = { selectedReceivableForDetail = null },
+                properties = DialogProperties(usePlatformDefaultWidth = false)
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth(0.95f)
+                        .padding(vertical = 20.dp)
+                        .clip(RoundedCornerShape(22.dp)),
+                    color = FintechBackground,
+                    border = BorderStroke(1.dp, FintechBorder)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .padding(20.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        // Header con Título, Botón de Editar, Borrar en una esquina y Cerrar
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(34.dp)
+                                        .clip(CircleShape)
+                                        .background(AccentNeon.copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.Default.Receipt,
+                                        contentDescription = null,
+                                        tint = AccentNeon,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Cuenta por Cobrar",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                )
+                            }
+
+                            // Botones en la esquina
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(
+                                    onClick = { receivableToEdit = currentRec },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Edit,
+                                        contentDescription = "Editar",
+                                        tint = AccentNeon,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(2.dp))
+                                IconButton(
+                                    onClick = { showDeleteConfirmDialog = true },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        contentDescription = "Borrar",
+                                        tint = FintechExpense,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(2.dp))
+                                IconButton(
+                                    onClick = { selectedReceivableForDetail = null },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "Cerrar",
+                                        tint = TextMuted,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Título y Concepto
+                        Text(
+                            text = currentRec.debtorName,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = TextPrimary
+                        )
+                        Text(
+                            text = currentRec.concept,
+                            fontSize = 13.sp,
+                            color = TextSecondary,
+                            fontWeight = FontWeight.Medium
+                        )
+
+                        if (currentRec.note.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "📝 ${currentRec.note}",
+                                fontSize = 11.sp,
+                                color = TextMuted
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Tarjeta de Monto
+                        GlassCard(
+                            accentGlow = if (currentRec.isCollected) NeonEmerald else FintechWarning,
+                            borderColor = if (currentRec.isCollected) NeonEmerald.copy(alpha = 0.35f) else FintechWarning.copy(alpha = 0.35f),
+                            shapeRadius = 14.dp
+                        ) {
+                            Column {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = if (currentRec.isCollected) "Monto Cobrado" else "Saldo Pendiente",
+                                        fontSize = 12.sp,
+                                        color = TextSecondary
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(
+                                                if (currentRec.isCollected) NeonEmerald.copy(alpha = 0.15f)
+                                                else FintechWarning.copy(alpha = 0.15f)
+                                            )
+                                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                                    ) {
+                                        Text(
+                                            text = if (currentRec.isCollected) "COBRADO" else "PENDIENTE",
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (currentRec.isCollected) NeonEmerald else FintechWarning
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(4.dp))
+
+                                Text(
+                                    text = Formatters.formatCurrency(currentRec.amount),
+                                    fontSize = 26.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = if (currentRec.isCollected) NeonEmerald else FintechWarning
+                                )
+
+                                if (currentRec.initialAmount > currentRec.amount && !currentRec.isCollected) {
+                                    Spacer(modifier = Modifier.height(3.dp))
+                                    Text(
+                                        text = "Monto inicial: ${Formatters.formatCurrency(currentRec.initialAmount)} • Abonado: ${Formatters.formatCurrency(currentRec.initialAmount - currentRec.amount)}",
+                                        fontSize = 11.sp,
+                                        color = NeonEmerald,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Botón de Cobrar
+                        if (!currentRec.isCollected) {
+                            Button(
+                                onClick = { receivableToCollect = currentRec },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = NeonEmerald)
+                            ) {
+                                Icon(Icons.Default.Payments, contentDescription = null, tint = FintechBackground, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Cobrar (Pago Parcial o Completo)", color = FintechBackground, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            }
+                            Spacer(modifier = Modifier.height(14.dp))
+                        }
+
+                        // Sección: Abrir Desglose
+                        val breakdownSum = currentRec.breakdown.sumOf { it.amount }
+                        val remainingToBreakdown = (currentRec.amount - breakdownSum).coerceAtLeast(0.0)
+
+                        OutlinedButton(
+                            onClick = { isBreakdownOpen = !isBreakdownOpen },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = if (isBreakdownOpen) AccentNeon else TextPrimary
+                            ),
+                            border = BorderStroke(1.dp, if (isBreakdownOpen) AccentNeon else FintechBorder)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Default.FormatListBulleted,
+                                        contentDescription = null,
+                                        tint = if (isBreakdownOpen) AccentNeon else TextSecondary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = if (isBreakdownOpen) "Ocultar Desglose" else "Abrir Desglose (${currentRec.breakdown.size} conceptos)",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                                Icon(
+                                    if (isBreakdownOpen) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+
+                        if (isBreakdownOpen) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            GlassCard(
+                                modifier = Modifier.fillMaxWidth(),
+                                shapeRadius = 14.dp
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text(
+                                        text = "Desglose de Conceptos",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        color = TextPrimary
+                                    )
+
+                                    LinearProgressIndicator(
+                                        progress = {
+                                            if (currentRec.amount > 0)
+                                                (breakdownSum / currentRec.amount).toFloat().coerceIn(0f, 1f)
+                                            else 1f
+                                        },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(6.dp)
+                                            .clip(RoundedCornerShape(3.dp)),
+                                        color = if (breakdownSum >= currentRec.amount) NeonEmerald else AccentNeon,
+                                        trackColor = FintechSurface
+                                    )
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = "Desglosado: ${Formatters.formatCurrency(breakdownSum)}",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (breakdownSum >= currentRec.amount) NeonEmerald else TextSecondary
+                                        )
+                                        Text(
+                                            text = if (remainingToBreakdown <= 0.001) "✅ 100% Cubierto" else "Faltan ${Formatters.formatCurrency(remainingToBreakdown)}",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (remainingToBreakdown <= 0.001) NeonEmerald else FintechWarning
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(2.dp))
+
+                                    if (currentRec.breakdown.isEmpty()) {
+                                        Text(
+                                            text = "No hay conceptos desglosados aún. Puedes agregar conceptos con sus montos hasta llegar al total.",
+                                            fontSize = 11.sp,
+                                            color = TextMuted
+                                        )
+                                    } else {
+                                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            currentRec.breakdown.forEach { item ->
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .background(FintechSurface)
+                                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Column(modifier = Modifier.weight(1f)) {
+                                                        Text(item.concept, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = TextPrimary)
+                                                        Text(Formatters.formatCurrency(item.amount), fontWeight = FontWeight.Bold, fontSize = 12.sp, color = AccentNeon)
+                                                    }
+                                                    IconButton(
+                                                        onClick = { onRemoveBreakdownItem(currentRec.id, item.id) },
+                                                        modifier = Modifier.size(26.dp)
+                                                    ) {
+                                                        Icon(Icons.Default.Delete, contentDescription = "Quitar", tint = TextMuted, modifier = Modifier.size(16.dp))
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    HorizontalDivider(color = FintechBorder, thickness = 0.5.dp)
+                                    Spacer(modifier = Modifier.height(2.dp))
+
+                                    Text("Agregar concepto al desglose:", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+
+                                    OutlinedTextField(
+                                        value = newConceptText,
+                                        onValueChange = { newConceptText = it },
+                                        label = { Text("Concepto (ej. Materiales, Honorarios)") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = true
+                                    )
+
+                                    OutlinedTextField(
+                                        value = newAmountText,
+                                        onValueChange = { newAmountText = it },
+                                        label = { Text("Monto ($)") },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = true
+                                    )
+
+                                    Button(
+                                        onClick = {
+                                            val amt = newAmountText.toDoubleOrNull() ?: 0.0
+                                            if (newConceptText.isNotBlank() && amt > 0) {
+                                                onAddBreakdownItem(currentRec.id, newConceptText.trim(), amt)
+                                                newConceptText = ""
+                                                newAmountText = ""
+                                            }
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(10.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = AccentNeon)
+                                    ) {
+                                        Icon(Icons.Default.Add, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Agregar al Desglose", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (showDeleteConfirmDialog) {
+                AlertDialog(
+                    onDismissRequest = { showDeleteConfirmDialog = false },
+                    title = { Text("¿Eliminar cuenta por cobrar?", fontWeight = FontWeight.Bold, color = TextPrimary) },
+                    text = { Text("Se cancelará la cuenta de ${currentRec.debtorName} por ${Formatters.formatCurrency(currentRec.amount)} y se registrará en el historial de movimientos.", color = TextSecondary) },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                onDeleteReceivable(currentRec.id)
+                                showDeleteConfirmDialog = false
+                                selectedReceivableForDetail = null
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = FintechExpense)
+                        ) {
+                            Text("Eliminar", color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showDeleteConfirmDialog = false }) {
+                            Text("Cancelar", color = TextSecondary)
+                        }
+                    }
+                )
+            }
+        }
     }
 }

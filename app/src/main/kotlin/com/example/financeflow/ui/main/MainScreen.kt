@@ -308,11 +308,20 @@ fun MainScreen(
                     onOpenNotificationSettings = {
                         BankNotificationListenerService.openNotificationAccessSettings(context)
                     },
-                    onAddReceivable = { debtor, concept, amount, day, note ->
-                        viewModel.addReceivable(debtor, concept, amount, day, note)
+                    onAddReceivable = { debtor, concept, amount, note ->
+                        viewModel.addReceivable(debtor, concept, amount, note = note)
                     },
-                    onMarkReceivableCollected = { recId, targetAccId ->
-                        viewModel.markReceivableAsCollected(recId, targetAccId)
+                    onUpdateReceivable = { recId, debtor, concept, amount, note ->
+                        viewModel.updateReceivable(recId, debtor, concept, amount, note)
+                    },
+                    onCollectReceivable = { recId, targetAccId, amount, isPartial ->
+                        viewModel.collectReceivable(recId, targetAccId, amount, isPartial)
+                    },
+                    onAddBreakdownItem = { recId, concept, amount ->
+                        viewModel.addBreakdownItem(recId, concept, amount)
+                    },
+                    onRemoveBreakdownItem = { recId, itemId ->
+                        viewModel.removeBreakdownItem(recId, itemId)
                     },
                     onDeleteReceivable = { recId ->
                         viewModel.deleteReceivable(recId)

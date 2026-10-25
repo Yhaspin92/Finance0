@@ -281,10 +281,37 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         debtorName: String,
         concept: String,
         amount: Double,
-        dueDayOfMonth: Int,
+        dueDayOfMonth: Int = 1,
         note: String = ""
     ) {
         repository.addReceivable(debtorName, concept, amount, dueDayOfMonth, note)
+    }
+
+    fun updateReceivable(
+        receivableId: String,
+        debtorName: String,
+        concept: String,
+        amount: Double,
+        note: String
+    ) {
+        repository.updateReceivable(receivableId, debtorName, concept, amount, note)
+    }
+
+    fun collectReceivable(
+        receivableId: String,
+        targetAccountId: String,
+        amountToCollect: Double,
+        isPartial: Boolean
+    ) {
+        repository.collectReceivable(receivableId, targetAccountId, amountToCollect, isPartial)
+    }
+
+    fun addBreakdownItem(receivableId: String, concept: String, amount: Double) {
+        repository.addBreakdownItem(receivableId, concept, amount)
+    }
+
+    fun removeBreakdownItem(receivableId: String, itemId: String) {
+        repository.removeBreakdownItem(receivableId, itemId)
     }
 
     fun markReceivableAsCollected(receivableId: String, depositAccountId: String) {

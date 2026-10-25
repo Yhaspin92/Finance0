@@ -32,6 +32,7 @@ enum class TransactionCategory {
     TRANSFERENCIA,
     PAGO_TARJETA,
     MSI_COMPRA,
+    CUENTAS_POR_COBRAR,
     OTROS
 }
 
@@ -149,25 +150,35 @@ data class NotificationLog(
     val failureReason: String? = null
 )
 
-// Modelo para Cuentas por Cobrar (Dinero por recibir en el mes, no disponible en físico aún)
+// Desglose de conceptos para Cuentas por Cobrar
+@Serializable
+data class ReceivableBreakdownItem(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val concept: String,
+    val amount: Double
+)
+
+// Modelo para Cuentas por Cobrar (Dinero por recibir en el mes)
 @Serializable
 data class AccountReceivable(
     val id: String,
     val debtorName: String,
     val concept: String,
     val amount: Double,
+    val initialAmount: Double = amount,
     val dueDayOfMonth: Int = 1,
     val dueDate: Long = System.currentTimeMillis(),
     val isCollected: Boolean = false,
     val collectedDate: Long? = null,
     val depositAccountId: String? = null,
-    val note: String = ""
+    val note: String = "",
+    val breakdown: List<ReceivableBreakdownItem> = emptyList()
 )
 
 // Modelo unificado de Copia de Seguridad Local
 @Serializable
 data class BackupData(
-    val appVersion: String = "1.2",
+    val appVersion: String = "1.6",
     val backupDate: Long = System.currentTimeMillis(),
     val accounts: List<Account> = emptyList(),
     val transactions: List<Transaction> = emptyList(),

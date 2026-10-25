@@ -40,7 +40,7 @@ class GitHubUpdateManager(private val context: Context) {
     private val prefs = context.getSharedPreferences("finance0_updater_prefs", Context.MODE_PRIVATE)
 
     var configuredRepo: String
-        get() = prefs.getString("github_repo", "Yharid/Finance0") ?: "Yharid/Finance0"
+        get() = prefs.getString("github_repo", "Yhaspin92/Finance0") ?: "Yhaspin92/Finance0"
         set(value) = prefs.edit().putString("github_repo", value.trim()).apply()
 
     var personalAccessToken: String

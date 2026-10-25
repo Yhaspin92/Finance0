@@ -53,17 +53,31 @@ fun TransactionsScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
-            Text(
-                text = "Movimientos",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                color = TextPrimary
-            )
-            Text(
-                text = "Historial completo de cargos, abonos y transferencias",
-                fontSize = 13.sp,
-                color = TextSecondary
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Movimientos",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "(${filteredList.size})",
+                        fontSize = 13.sp,
+                        color = TextSecondary
+                    )
+                }
+                Text(
+                    text = "Historial",
+                    fontSize = 12.sp,
+                    color = TextMuted
+                )
+            }
         }
 
         // Buscador

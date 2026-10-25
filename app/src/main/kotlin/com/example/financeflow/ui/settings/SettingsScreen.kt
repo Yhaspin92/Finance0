@@ -24,6 +24,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.financeflow.data.notification.BankNotificationListenerService
 import com.example.financeflow.data.updater.UpdateState
 import com.example.financeflow.ui.FinanceViewModel
 import com.example.financeflow.ui.components.GlassCard
@@ -47,11 +48,17 @@ fun SettingsScreen(
     val updateState by viewModel.updateState.collectAsState()
     val payrollConfig by viewModel.payrollConfig.collectAsState()
     val accounts by viewModel.accounts.collectAsState()
+    val isNotificationPermissionGranted by viewModel.isNotificationPermissionGranted.collectAsState()
+    val isAutoBackupEnabled by viewModel.isAutoBackupEnabled.collectAsState()
+    val autoBackupFrequency by viewModel.autoBackupFrequency.collectAsState()
+    val autoBackupTime by viewModel.autoBackupTime.collectAsState()
+    val lastAutoBackupDate by viewModel.lastAutoBackupDate.collectAsState()
     val context = LocalContext.current
 
     var showMasterResetDialog by remember { mutableStateOf(false) }
     var resetSuccessMessage by remember { mutableStateOf(false) }
     var backupStatusMessage by remember { mutableStateOf<String?>(null) }
+    var autoBackupStatusMessage by remember { mutableStateOf<String?>(null) }
 
     var payrollFrequency by remember(payrollConfig) { mutableStateOf(payrollConfig.frequency) }
     var payrollAmountText by remember(payrollConfig) { mutableStateOf(payrollConfig.expectedAmount.toString()) }
@@ -123,7 +130,7 @@ fun SettingsScreen(
                         color = TextPrimary
                     )
                     Text(
-                        text = "Temas, actualizaciones OTA y administración de datos",
+                        text = "Apariencia, Horarios, Datos y Sistema",
                         fontSize = 13.sp,
                         color = TextSecondary
                     )
@@ -132,17 +139,18 @@ fun SettingsScreen(
         }
 
         // ==========================================
-        // 1. SECCIÓN DE TEMAS VISUALES
+        // 1. CONCEPTO: APARIENCIA - TEMAS
         // ==========================================
         item {
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "🎨 Temas y Apariencia",
-                fontSize = 18.sp,
+                text = "🎨 Apariencia",
+                fontSize = 19.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextPrimary
             )
             Text(
-                text = "Selecciona la paleta Dark Fintech que prefieras para la app",
+                text = "Temas visuales Dark Fintech para la interfaz",
                 fontSize = 12.sp,
                 color = TextSecondary
             )
@@ -170,7 +178,6 @@ fun SettingsScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.weight(1f)
                     ) {
-                        // Muestras de color
                         Row(horizontalArrangement = Arrangement.spacedBy((-6).dp)) {
                             Box(
                                 modifier = Modifier
@@ -218,23 +225,582 @@ fun SettingsScreen(
         }
 
         // ==========================================
-        // 2. SECCIÓN DE ACTUALIZACIONES GITHUB OTA
+        // 2. CONCEPTO: HORARIOS Y FECHAS - CALENDARIO DE COBRO DE NÓMINA
         // ==========================================
         item {
             Spacer(modifier = Modifier.height(10.dp))
             Text(
-                text = "🚀 Actualizaciones del Motor (GitHub OTA)",
-                fontSize = 18.sp,
+                text = "📅 Horarios y Fechas",
+                fontSize = 19.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextPrimary
             )
             Text(
-                text = "Actualiza Finance0 directamente por internet sin intermediarios",
+                text = "Calendario de cobro de nómina y periodicidad",
                 fontSize = 12.sp,
                 color = TextSecondary
             )
         }
 
+        item {
+            GlassCard(
+                borderColor = AccentNeon.copy(alpha = 0.4f),
+                accentGlow = AccentNeon,
+                shapeRadius = 18.dp
+            ) {
+                Text("Frecuencia de Cobro de Nómina:", fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 14.sp)
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    PayrollFrequency.values().forEach { freq ->
+                        val isSelected = payrollFrequency == freq
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { payrollFrequency = freq },
+                            label = {
+                                Text(
+                                    when (freq) {
+                                        PayrollFrequency.QUINCENAL -> "Por Quincena (15 y fin)"
+                                        PayrollFrequency.SEMANAL -> "Por Semana"
+                                        PayrollFrequency.MENSUAL -> "Por Mes"
+                                        PayrollFrequency.CATORCENAL -> "Catorcenal (14 días)"
+                                        PayrollFrequency.PERSONALIZADO -> "Personalizado"
+                                    }
+                                )
+                            }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                if (payrollFrequency == PayrollFrequency.PERSONALIZADO) {
+                    OutlinedTextField(
+                        value = payrollCustomDaysText,
+                        onValueChange = { payrollCustomDaysText = it },
+                        label = { Text("Días del mes en que cobras (ej. 5, 20 o 1, 15)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+
+                OutlinedTextField(
+                    value = payrollAmountText,
+                    onValueChange = { payrollAmountText = it },
+                    label = { Text("Monto esperado por pago de nómina ($ MXN)") },
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Text("Cuenta bancaria donde recibes tu nómina:", fontSize = 12.sp, color = TextSecondary)
+                Spacer(modifier = Modifier.height(4.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    accounts.filter { it.type != AccountType.CREDIT }.forEach { acc ->
+                        val isSelected = payrollAccountId == acc.id
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSelected) AccentNeon.copy(alpha = 0.15f) else FintechSurface)
+                                .clickable { payrollAccountId = acc.id }
+                                .padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = isSelected,
+                                onClick = { payrollAccountId = acc.id }
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("${acc.name} (${acc.bankName})", fontSize = 12.sp, color = TextPrimary)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Button(
+                    onClick = {
+                        val amount = payrollAmountText.toDoubleOrNull() ?: 15000.0
+                        val customDays = payrollCustomDaysText
+                            .split(",")
+                            .mapNotNull { it.trim().toIntOrNull() }
+                            .filter { it in 1..31 }
+
+                        val newConfig = payrollConfig.copy(
+                            frequency = payrollFrequency,
+                            expectedAmount = amount,
+                            customDays = if (customDays.isNotEmpty()) customDays else listOf(15, 30),
+                            defaultAccountId = payrollAccountId.ifBlank { null }
+                        )
+                        viewModel.updatePayrollConfig(newConfig)
+                        payrollSavedMessage = true
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentNeon)
+                ) {
+                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Guardar Configuración de Nómina", color = Color.Black, fontWeight = FontWeight.Bold)
+                }
+
+                if (payrollSavedMessage) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "✅ Configuración de nómina y calendario actualizada.",
+                        color = NeonEmerald,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
+        // ==========================================
+        // 3. CONCEPTO: DATOS - RESPALDO, RESPALDO AUTOMÁTICO Y ZONA DE PELIGRO
+        // ==========================================
+        item {
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = "💾 Datos",
+                fontSize = 19.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
+            Text(
+                text = "Respaldo local, respaldo automático y zona de peligro",
+                fontSize = 12.sp,
+                color = TextSecondary
+            )
+        }
+
+        // 3.1 Respaldo Manual Local
+        item {
+            GlassCard(
+                borderColor = AccentNeon.copy(alpha = 0.4f),
+                accentGlow = AccentNeon,
+                shapeRadius = 18.dp
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(AccentNeon.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Save, contentDescription = "Respaldo", tint = AccentNeon)
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Respaldo Manual (JSON)",
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary,
+                            fontSize = 15.sp
+                        )
+                        Text(
+                            text = "Exporta o restaura tus cuentas, movimientos y configuraciones en archivo JSON",
+                            color = TextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+                            createDocLauncher.launch("Finance0_Backup_$timeStamp.json")
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentNeon)
+                    ) {
+                        Icon(Icons.Default.Download, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Exportar", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            try {
+                                val jsonContent = viewModel.createBackupJson()
+                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_SUBJECT, "Copia de Seguridad Finance0")
+                                    putExtra(Intent.EXTRA_TEXT, jsonContent)
+                                }
+                                context.startActivity(Intent.createChooser(shareIntent, "Compartir Copia de Seguridad"))
+                            } catch (e: Exception) {
+                                backupStatusMessage = "❌ Error al compartir: ${e.message}"
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, AccentSecondary)
+                    ) {
+                        Icon(Icons.Default.Share, contentDescription = null, tint = AccentSecondary, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Compartir", color = AccentSecondary, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                OutlinedButton(
+                    onClick = {
+                        openDocLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, FintechBorder)
+                ) {
+                    Icon(Icons.Default.UploadFile, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Restaurar desde archivo JSON", color = TextPrimary, fontWeight = FontWeight.Medium, fontSize = 12.sp)
+                }
+
+                if (backupStatusMessage != null) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = backupStatusMessage!!,
+                        color = if (backupStatusMessage!!.startsWith("✅")) NeonEmerald else FintechExpense,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        }
+
+        // 3.2 Respaldo Automático Programable
+        item {
+            GlassCard(
+                borderColor = NeonCyan.copy(alpha = 0.4f),
+                accentGlow = NeonCyan,
+                shapeRadius = 18.dp
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(NeonCyan.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.Schedule, contentDescription = "Auto Respaldo", tint = NeonCyan)
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Respaldo Automático",
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary,
+                                fontSize = 15.sp
+                            )
+                            Text(
+                                text = "Elige periodicidad y hora de guardado automático",
+                                color = TextSecondary,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+
+                    Switch(
+                        checked = isAutoBackupEnabled,
+                        onCheckedChange = { viewModel.setAutoBackupEnabled(it) },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = FintechBackground,
+                            checkedTrackColor = NeonCyan
+                        )
+                    )
+                }
+
+                if (isAutoBackupEnabled) {
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Text("Frecuencia del Respaldo Automático:", fontSize = 12.sp, color = TextSecondary)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf(
+                            "DAILY" to "Diario",
+                            "WEEKLY" to "Semanal",
+                            "MONTHLY" to "Mensual"
+                        ).forEach { (key, label) ->
+                            val isSel = autoBackupFrequency == key
+                            FilterChip(
+                                selected = isSel,
+                                onClick = { viewModel.setAutoBackupFrequency(key) },
+                                label = { Text(label, fontSize = 12.sp) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text("Hora de Ejecución:", fontSize = 12.sp, color = TextSecondary)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf("00:00", "02:00", "06:00", "12:00", "20:00", "23:00").forEach { timeOption ->
+                            val isSel = autoBackupTime == timeOption
+                            FilterChip(
+                                selected = isSel,
+                                onClick = { viewModel.setAutoBackupTime(timeOption) },
+                                label = { Text(timeOption, fontSize = 12.sp) }
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(FintechSurface)
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Info, contentDescription = null, tint = NeonCyan, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Último respaldo: $lastAutoBackupDate",
+                            fontSize = 11.sp,
+                            color = TextSecondary
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Button(
+                        onClick = {
+                            val msg = viewModel.triggerManualAutoBackupNow()
+                            autoBackupStatusMessage = "✅ $msg"
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = NeonCyan)
+                    ) {
+                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = FintechBackground, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Ejecutar Respaldo Automático Ahora", color = FintechBackground, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+
+                    if (autoBackupStatusMessage != null) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = autoBackupStatusMessage!!,
+                            color = NeonEmerald,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+
+        // 3.3 Zona de Peligro: Borrado Maestro
+        item {
+            GlassCard(
+                borderColor = FintechExpense.copy(alpha = 0.5f),
+                accentGlow = FintechExpense,
+                shapeRadius = 18.dp
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(FintechExpense.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.DeleteForever, contentDescription = "Borrado Maestro", tint = FintechExpense)
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Zona de Peligro: Borrado Maestro",
+                            fontWeight = FontWeight.Bold,
+                            color = FintechExpense,
+                            fontSize = 15.sp
+                        )
+                        Text(
+                            text = "Elimina permanentemente todas las cuentas, movimientos, MSI y nóminas.",
+                            color = TextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Button(
+                    onClick = { showMasterResetDialog = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = FintechExpense)
+                ) {
+                    Icon(Icons.Default.Warning, contentDescription = "Borrar", tint = TextPrimary, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Ejecutar Borrado Maestro",
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                }
+
+                if (resetSuccessMessage) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = "✅ Todos los datos fueron eliminados correctamente.",
+                        color = NeonEmerald,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
+        // ==========================================
+        // 4. CONCEPTO: SISTEMA - NOTIFICACIONES Y ACTUALIZACIONES
+        // ==========================================
+        item {
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = "⚙️ Sistema",
+                fontSize = 19.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
+            Text(
+                text = "Permisos de notificaciones y actualizaciones del motor",
+                fontSize = 12.sp,
+                color = TextSecondary
+            )
+        }
+
+        // 4.1 Permiso de Lector de Notificaciones Bancarias
+        item {
+            GlassCard(
+                borderColor = if (isNotificationPermissionGranted) NeonEmerald.copy(alpha = 0.4f) else FintechWarning.copy(alpha = 0.5f),
+                accentGlow = if (isNotificationPermissionGranted) NeonEmerald else FintechWarning,
+                shapeRadius = 18.dp
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(if (isNotificationPermissionGranted) NeonEmerald.copy(alpha = 0.2f) else FintechWarning.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                if (isNotificationPermissionGranted) Icons.Default.CheckCircle else Icons.Default.Warning,
+                                contentDescription = "Estado",
+                                tint = if (isNotificationPermissionGranted) NeonEmerald else FintechWarning
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Column {
+                            Text(
+                                text = "Lector de Notificaciones Bancarias",
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary,
+                                fontSize = 15.sp
+                            )
+                            Text(
+                                text = if (isNotificationPermissionGranted)
+                                    "Servicio activo: detecta cargos y depósitos de bancos en vivo."
+                                else
+                                    "Requiere autorización en Ajustes de Android para leer transacciones.",
+                                color = TextSecondary,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            BankNotificationListenerService.openNotificationAccessSettings(context)
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isNotificationPermissionGranted) FintechSurface else NeonEmerald
+                        )
+                    ) {
+                        Icon(Icons.Default.Settings, contentDescription = "Ajustes", modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (isNotificationPermissionGranted) "Configurar en Android" else "Activar Permiso",
+                            fontWeight = FontWeight.Bold,
+                            color = if (isNotificationPermissionGranted) TextPrimary else FintechBackground,
+                            fontSize = 12.sp
+                        )
+                    }
+
+                    OutlinedButton(
+                        onClick = { viewModel.checkPermission() },
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonCyan)
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Actualizar", modifier = Modifier.size(16.dp))
+                    }
+                }
+            }
+        }
+
+        // 4.2 Actualizaciones del Motor (GitHub OTA)
         item {
             GlassCard(shapeRadius = 18.dp) {
                 Row(
@@ -389,354 +955,6 @@ fun SettingsScreen(
                     is UpdateState.Error -> {
                         Text(text = state.message, fontSize = 12.sp, color = FintechExpense)
                     }
-                }
-            }
-        }
-
-        // ==========================================
-        // 3. SECCIÓN DE CONFIGURACIÓN DE NÓMINA Y CALENDARIO
-        // ==========================================
-        item {
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = "📅 Calendario y Cobro de Nómina",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = TextPrimary
-            )
-            Text(
-                text = "Configura la frecuencia con la que cobras tu sueldo (quincenal, semanal, mensual o personalizada)",
-                fontSize = 12.sp,
-                color = TextSecondary
-            )
-        }
-
-        item {
-            GlassCard(
-                borderColor = AccentNeon.copy(alpha = 0.4f),
-                accentGlow = AccentNeon,
-                shapeRadius = 18.dp
-            ) {
-                Text("Frecuencia de Cobro:", fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 14.sp)
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    PayrollFrequency.values().forEach { freq ->
-                        val isSelected = payrollFrequency == freq
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = { payrollFrequency = freq },
-                            label = {
-                                Text(
-                                    when (freq) {
-                                        PayrollFrequency.QUINCENAL -> "Por Quincena (15 y fin)"
-                                        PayrollFrequency.SEMANAL -> "Por Semana"
-                                        PayrollFrequency.MENSUAL -> "Por Mes"
-                                        PayrollFrequency.CATORCENAL -> "Catorcenal (14 días)"
-                                        PayrollFrequency.PERSONALIZADO -> "Personalizado"
-                                    }
-                                )
-                            }
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                if (payrollFrequency == PayrollFrequency.PERSONALIZADO) {
-                    OutlinedTextField(
-                        value = payrollCustomDaysText,
-                        onValueChange = { payrollCustomDaysText = it },
-                        label = { Text("Días del mes en que cobras (ej. 5, 20 o 1, 15)") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                }
-
-                OutlinedTextField(
-                    value = payrollAmountText,
-                    onValueChange = { payrollAmountText = it },
-                    label = { Text("Monto esperado por pago de nómina ($ MXN)") },
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Text("Cuenta donde recibes tu nómina:", fontSize = 12.sp, color = TextSecondary)
-                Spacer(modifier = Modifier.height(4.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    accounts.filter { it.type != AccountType.CREDIT }.forEach { acc ->
-                        val isSelected = payrollAccountId == acc.id
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (isSelected) AccentNeon.copy(alpha = 0.15f) else FintechSurface)
-                                .clickable { payrollAccountId = acc.id }
-                                .padding(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = isSelected,
-                                onClick = { payrollAccountId = acc.id }
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("${acc.name} (${acc.bankName})", fontSize = 12.sp, color = TextPrimary)
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                Button(
-                    onClick = {
-                        val amount = payrollAmountText.toDoubleOrNull() ?: 15000.0
-                        val customDays = payrollCustomDaysText
-                            .split(",")
-                            .mapNotNull { it.trim().toIntOrNull() }
-                            .filter { it in 1..31 }
-
-                        val newConfig = payrollConfig.copy(
-                            frequency = payrollFrequency,
-                            expectedAmount = amount,
-                            customDays = if (customDays.isNotEmpty()) customDays else listOf(15, 30),
-                            defaultAccountId = payrollAccountId.ifBlank { null }
-                        )
-                        viewModel.updatePayrollConfig(newConfig)
-                        payrollSavedMessage = true
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentNeon)
-                ) {
-                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Guardar Configuración de Nómina", color = Color.Black, fontWeight = FontWeight.Bold)
-                }
-
-                if (payrollSavedMessage) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "✅ Configuración de nómina y calendario actualizada.",
-                        color = NeonEmerald,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-        }
-
-        // ==========================================
-        // 4. SECCIÓN DE RESPALDO Y RESTAURACIÓN LOCAL
-        // ==========================================
-        item {
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = "💾 Respaldo y Restauración Local",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = TextPrimary
-            )
-            Text(
-                text = "Exporta o restaura tus cuentas, movimientos, tarjetas, MSI y cuentas por cobrar en archivo JSON",
-                fontSize = 12.sp,
-                color = TextSecondary
-            )
-        }
-
-        item {
-            GlassCard(
-                borderColor = AccentNeon.copy(alpha = 0.4f),
-                accentGlow = AccentNeon,
-                shapeRadius = 18.dp
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(AccentNeon.copy(alpha = 0.15f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.Save, contentDescription = "Respaldo", tint = AccentNeon)
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Copias de Seguridad Offline",
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary,
-                            fontSize = 15.sp
-                        )
-                        Text(
-                            text = "No requiere internet. Puedes guardarlo en tus descargas o compartirlo a Google Drive.",
-                            color = TextSecondary,
-                            fontSize = 11.sp
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    // Botón Guardar Archivo
-                    Button(
-                        onClick = {
-                            val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-                            createDocLauncher.launch("Finance0_Backup_$timeStamp.json")
-                        },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentNeon)
-                    ) {
-                        Icon(Icons.Default.Download, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Exportar", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    }
-
-                    // Botón Compartir / Enviar
-                    OutlinedButton(
-                        onClick = {
-                            try {
-                                val jsonContent = viewModel.createBackupJson()
-                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                    type = "text/plain"
-                                    putExtra(Intent.EXTRA_SUBJECT, "Copia de Seguridad Finance0")
-                                    putExtra(Intent.EXTRA_TEXT, jsonContent)
-                                }
-                                context.startActivity(Intent.createChooser(shareIntent, "Compartir Copia de Seguridad"))
-                            } catch (e: Exception) {
-                                backupStatusMessage = "❌ Error al compartir: ${e.message}"
-                            }
-                        },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, AccentSecondary)
-                    ) {
-                        Icon(Icons.Default.Share, contentDescription = null, tint = AccentSecondary, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Compartir", color = AccentSecondary, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Botón Restaurar Archivo
-                OutlinedButton(
-                    onClick = {
-                        openDocLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, FintechBorder)
-                ) {
-                    Icon(Icons.Default.UploadFile, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Restaurar desde archivo JSON", color = TextPrimary, fontWeight = FontWeight.Medium, fontSize = 12.sp)
-                }
-
-                if (backupStatusMessage != null) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text(
-                        text = backupStatusMessage!!,
-                        color = if (backupStatusMessage!!.startsWith("✅")) NeonEmerald else FintechExpense,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
-        }
-
-        // ==========================================
-        // 4. SECCIÓN DE BORRADO MAESTRO DE DATOS
-        // ==========================================
-        item {
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(
-                text = "⚠️ Zona de Peligro",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = FintechExpense
-            )
-            Text(
-                text = "Acciones destructivas e irreversibles sobre la base de datos local",
-                fontSize = 12.sp,
-                color = TextSecondary
-            )
-        }
-
-        item {
-            GlassCard(
-                borderColor = FintechExpense.copy(alpha = 0.5f),
-                accentGlow = FintechExpense,
-                shapeRadius = 18.dp
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(FintechExpense.copy(alpha = 0.2f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.DeleteForever, contentDescription = "Borrado Maestro", tint = FintechExpense)
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Borrado Maestro de Datos",
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary,
-                            fontSize = 15.sp
-                        )
-                        Text(
-                            text = "Elimina permanentemente todas las cuentas, transacciones, compras a MSI, registros y nóminas.",
-                            color = TextSecondary,
-                            fontSize = 11.sp
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Button(
-                    onClick = { showMasterResetDialog = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = FintechExpense)
-                ) {
-                    Icon(Icons.Default.Warning, contentDescription = "Borrar", tint = TextPrimary, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Ejecutar Borrado Maestro",
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-                }
-
-                if (resetSuccessMessage) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text(
-                        text = "✅ Todos los datos fueron eliminados correctamente.",
-                        color = NeonEmerald,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
                 }
             }
         }

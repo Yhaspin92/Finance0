@@ -61,34 +61,39 @@ fun CardsScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
-                        text = "Tarjetas de Crédito",
+                        text = "Tarjetas de Crédito y Débito",
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary
                     )
-                    Text(
-                        text = "Cortes, fechas límite y Meses Sin Intereses (MSI)",
-                        fontSize = 13.sp,
-                        color = TextSecondary
-                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    IconButton(
+                        onClick = { showAddCardDialog = true },
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(AccentNeon.copy(alpha = 0.2f))
+                    ) {
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = "Añadir Tarjeta",
+                            tint = AccentNeon,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
-
-                Button(
-                    onClick = { showAddCardDialog = true },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentNeon)
-                ) {
-                    Icon(Icons.Default.CreditCard, contentDescription = "Añadir Tarjeta", tint = Color.Black, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("+ Tarjeta", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                }
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Cortes, fechas límite y Meses Sin Intereses (MSI)",
+                    fontSize = 13.sp,
+                    color = TextSecondary
+                )
             }
         }
 
@@ -350,37 +355,39 @@ fun CardsScreen(
 
         // SECCIÓN MESES SIN INTERESES (MSI)
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
                         text = "🛍️ Compras a Meses Sin Intereses (MSI)",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary
                     )
-                    Text(
-                        text = "Monitorea tus mensualidades activas y pagos restantes",
-                        fontSize = 12.sp,
-                        color = TextSecondary
-                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    IconButton(
+                        onClick = { showAddMsiDialog = true },
+                        modifier = Modifier
+                            .size(30.dp)
+                            .clip(CircleShape)
+                            .background(AccentSecondary.copy(alpha = 0.2f))
+                    ) {
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = "Añadir MSI",
+                            tint = AccentSecondary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
-
-                FilledTonalButton(
-                    onClick = { showAddMsiDialog = true },
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = AccentSecondary.copy(alpha = 0.2f),
-                        contentColor = AccentSecondary
-                    )
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Nueva MSI", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Monitorea tus mensualidades activas y pagos restantes",
+                    fontSize = 12.sp,
+                    color = TextSecondary
+                )
             }
         }
 
@@ -714,7 +721,8 @@ fun CardsScreen(
     if (showAddCardDialog) {
         var cardName by remember { mutableStateOf("") }
         var isDebit by remember { mutableStateOf(false) }
-        var selectedBank by remember { mutableStateOf("BBVA México") }
+        var selectedBank by remember { mutableStateOf("Revolut México") }
+        var customBankText by remember { mutableStateOf("") }
         var last4Digits by remember { mutableStateOf("") }
         var creditLimitText by remember { mutableStateOf("") }
         var currentDebtText by remember { mutableStateOf("0") }
@@ -723,8 +731,12 @@ fun CardsScreen(
         var selectedAccountId by remember { mutableStateOf(accounts.firstOrNull()?.id ?: "") }
 
         val bankOptions = listOf(
-            "BBVA México", "Nu México", "Mercado Pago", "Santander",
-            "Banorte", "Citibanamex", "Hey Banco", "HSBC México", "Scotiabank", "Otro"
+            "Revolut México", "BBVA México", "Nu México", "Mercado Pago",
+            "Santander", "Banorte", "Citibanamex", "Hey Banco",
+            "Stori", "Klar", "Ualá", "Plata Card", "UNO", "Clip",
+            "Novacard", "Lenda", "ARQ", "Banco Azteca", "HSBC México",
+            "Scotiabank", "Spin by OXXO", "Inbursa", "BanCoppel", "RappiCard",
+            "DolarApp", "Otro"
         )
 
         AlertDialog(
@@ -780,9 +792,20 @@ fun CardsScreen(
                                 FilterChip(
                                     selected = selectedBank == b,
                                     onClick = { selectedBank = b },
-                                    label = { Text(b.split(" ")[0]) }
+                                    label = { Text(b, fontSize = 11.sp) }
                                 )
                             }
+                        }
+                    }
+
+                    if (selectedBank == "Otro") {
+                        item {
+                            OutlinedTextField(
+                                value = customBankText,
+                                onValueChange = { customBankText = it },
+                                label = { Text("Especifica el nombre del banco emisor") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
                         }
                     }
 
@@ -874,9 +897,10 @@ fun CardsScreen(
                         val cutOff = cutOffDayText.toIntOrNull() ?: 10
                         val dueDay = paymentDueDayText.toIntOrNull() ?: 30
                         if (cardName.isNotBlank()) {
+                            val finalBank = if (selectedBank == "Otro" && customBankText.isNotBlank()) customBankText.trim() else selectedBank
                             onAddCard(
                                 cardName.trim(),
-                                selectedBank,
+                                finalBank,
                                 last4Digits.trim(),
                                 limit,
                                 debt,

@@ -17,7 +17,10 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.io.File
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 class FinanceViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -299,6 +302,39 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
     fun restoreBackup(jsonString: String): Result<String> {
         return repository.restoreFromBackupJson(jsonString)
+    }
+
+    // --- Respaldo Automático ---
+    private val backupPrefs = getApplication<Application>().getSharedPreferences("finance0_autobackup_prefs", android.content.Context.MODE_PRIVATE)
+
+    val isAutoBackupEnabled = MutableStateFlow(backupPrefs.getBoolean("auto_backup_enabled", false))
+    val autoBackupFrequency = MutableStateFlow(backupPrefs.getString("auto_backup_freq", "DAILY") ?: "DAILY")
+    val autoBackupTime = MutableStateFlow(backupPrefs.getString("auto_backup_time", "23:00") ?: "23:00")
+    val lastAutoBackupDate = MutableStateFlow(backupPrefs.getString("last_auto_backup_date", "Sin respaldos automáticos previos") ?: "Sin respaldos automáticos previos")
+
+    fun setAutoBackupEnabled(enabled: Boolean) {
+        isAutoBackupEnabled.value = enabled
+        backupPrefs.edit().putBoolean("auto_backup_enabled", enabled).apply()
+    }
+
+    fun setAutoBackupFrequency(freq: String) {
+        autoBackupFrequency.value = freq
+        backupPrefs.edit().putString("auto_backup_freq", freq).apply()
+    }
+
+    fun setAutoBackupTime(time: String) {
+        autoBackupTime.value = time
+        backupPrefs.edit().putString("auto_backup_time", time).apply()
+    }
+
+    fun triggerManualAutoBackupNow(): String {
+        val json = repository.createBackupJson()
+        val backupFile = File(getApplication<Application>().filesDir, "finance0_auto_backup.json")
+        backupFile.writeText(json)
+        val nowFormatted = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date())
+        backupPrefs.edit().putString("last_auto_backup_date", nowFormatted).apply()
+        lastAutoBackupDate.value = nowFormatted
+        return "Respaldo automático generado con éxito ($nowFormatted)"
     }
 
     // --- Cuentas Bancarias & Tarjetas ---

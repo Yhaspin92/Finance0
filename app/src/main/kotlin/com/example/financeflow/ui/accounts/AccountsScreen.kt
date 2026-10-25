@@ -3,9 +3,11 @@ package com.example.financeflow.ui.accounts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -54,34 +56,39 @@ fun AccountsScreen(
     ) {
         // Encabezado
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
                         text = "Cuentas Bancarias",
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary
                     )
-                    Text(
-                        text = "Activos totales, ahorros, apartados e inversiones",
-                        fontSize = 13.sp,
-                        color = TextSecondary
-                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    IconButton(
+                        onClick = { showAddAccountDialog = true },
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(AccentNeon.copy(alpha = 0.2f))
+                    ) {
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = "Añadir Cuenta",
+                            tint = AccentNeon,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
-
-                Button(
-                    onClick = { showAddAccountDialog = true },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentNeon)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Añadir", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                }
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Activos totales, ahorros, apartados e inversiones",
+                    fontSize = 13.sp,
+                    color = TextSecondary
+                )
             }
         }
 
@@ -590,7 +597,8 @@ fun AddAccountModal(
     onSave: (name: String, bankName: String, type: AccountType, balance: Double, last4: String, colorHex: String, investment: Double, yield: Double) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
-    var selectedBank by remember { mutableStateOf("BBVA México") }
+    var selectedBank by remember { mutableStateOf("Revolut México") }
+    var customBankText by remember { mutableStateOf("") }
     var accountType by remember { mutableStateOf(AccountType.DEBIT) }
     var balanceText by remember { mutableStateOf("") }
     var last4Digits by remember { mutableStateOf("") }
@@ -598,9 +606,12 @@ fun AddAccountModal(
     var yieldText by remember { mutableStateOf("") }
 
     val bankOptions = listOf(
-        "BBVA México", "Nu México", "Mercado Pago", "Santander",
-        "Banorte", "Citibanamex", "Hey Banco", "Banco Azteca",
-        "HSBC México", "Scotiabank", "Spin by OXXO", "Efectivo", "Otro"
+        "Revolut México", "BBVA México", "Nu México", "Mercado Pago",
+        "Santander", "Banorte", "Citibanamex", "Hey Banco",
+        "Stori", "Klar", "Ualá", "Plata Card", "UNO", "Clip",
+        "Novacard", "Lenda", "ARQ", "Banco Azteca", "HSBC México",
+        "Scotiabank", "Spin by OXXO", "Inbursa", "BanCoppel", "RappiCard",
+        "DolarApp", "Efectivo", "Otro"
     )
 
     AlertDialog(
@@ -615,7 +626,7 @@ fun AddAccountModal(
                     OutlinedTextField(
                         value = name,
                         onValueChange = { name = it },
-                        label = { Text("Nombre de la cuenta (ej. Ahorros BBVA)") },
+                        label = { Text("Nombre de la cuenta (ej. Ahorros Revolut)") },
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -625,16 +636,28 @@ fun AddAccountModal(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
                             .padding(vertical = 4.dp),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        bankOptions.take(4).forEach { b ->
+                        bankOptions.forEach { b ->
                             FilterChip(
                                 selected = selectedBank == b,
                                 onClick = { selectedBank = b },
-                                label = { Text(b.split(" ")[0], fontSize = 11.sp) }
+                                label = { Text(b, fontSize = 11.sp) }
                             )
                         }
+                    }
+                }
+
+                if (selectedBank == "Otro") {
+                    item {
+                        OutlinedTextField(
+                            value = customBankText,
+                            onValueChange = { customBankText = it },
+                            label = { Text("Especifica el nombre del banco o fintech") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 }
 
@@ -686,17 +709,25 @@ fun AddAccountModal(
                     val inv = investmentText.toDoubleOrNull() ?: 0.0
                     val y = yieldText.toDoubleOrNull() ?: 0.0
                     if (name.isNotBlank()) {
-                        val color = when (selectedBank) {
+                        val finalBank = if (selectedBank == "Otro" && customBankText.isNotBlank()) customBankText.trim() else selectedBank
+                        val color = when (finalBank) {
+                            "Revolut México" -> "#0075EB"
                             "BBVA México" -> "#004481"
                             "Nu México" -> "#820AD1"
                             "Mercado Pago" -> "#009EE3"
                             "Santander" -> "#EC0000"
                             "Banorte" -> "#EB0029"
                             "Citibanamex" -> "#002D72"
+                            "Stori" -> "#00B140"
+                            "UNO" -> "#FF5000"
+                            "Klar" -> "#00E676"
+                            "Ualá" -> "#FF3366"
+                            "Plata Card" -> "#212121"
+                            "Clip" -> "#FF5900"
                             "Efectivo" -> "#00E676"
                             else -> "#7C4DFF"
                         }
-                        onSave(name.trim(), selectedBank, accountType, bal, last4Digits.trim(), color, inv, y)
+                        onSave(name.trim(), finalBank, accountType, bal, last4Digits.trim(), color, inv, y)
                     }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = AccentNeon)

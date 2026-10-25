@@ -36,7 +36,13 @@ object BankParserEngine {
         "com.klar" to "Klar",
         "com.rappicard" to "RappiCard",
         "com.stori" to "Stori",
-        "com.uala.mexico" to "Ualá"
+        "com.storicard.stori" to "Stori",
+        "com.uala.mexico" to "Ualá",
+        "com.revolut.revolut" to "Revolut México",
+        "mx.plata.card" to "Plata Card",
+        "com.payclip.clip" to "Clip",
+        "com.bancouno.app" to "UNO",
+        "com.novacard.app" to "Novacard"
     )
 
     private val AMOUNT_REGEX = Pattern.compile(
@@ -91,7 +97,14 @@ object BankParserEngine {
             lower.contains("spin by oxxo") || lower.contains("spin") -> "Spin by OXXO"
             lower.contains("klar") -> "Klar"
             lower.contains("rappicard") || lower.contains("rappi") -> "RappiCard"
+            lower.contains("revolut") -> "Revolut México"
             lower.contains("stori") -> "Stori"
+            lower.contains("plata card") || lower.contains("plata") -> "Plata Card"
+            lower.contains("banco uno") || lower.contains("financiera uno") || lower.contains("tarjeta uno") -> "UNO"
+            lower.contains("clip") -> "Clip"
+            lower.contains("novacard") -> "Novacard"
+            lower.contains("lenda") -> "Lenda"
+            lower.contains("arq") -> "ARQ"
             lower.contains("inbursa") -> "Inbursa"
             lower.contains("uala") || lower.contains("ualá") -> "Ualá"
             else -> "Banco / Fintech"

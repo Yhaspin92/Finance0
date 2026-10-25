@@ -61,7 +61,7 @@ fun DashboardScreen(
     var showReceivablesSubScreen by remember { mutableStateOf(false) }
 
     val coroutineScope = rememberCoroutineScope()
-    val pagerState = rememberPagerState(pageCount = { 3 })
+    val pagerState = rememberPagerState(pageCount = { 2 })
 
     // =========================================================================
     // PANTALLA SECUNDARIA DEDICADA: CUENTAS POR COBRAR
@@ -378,8 +378,9 @@ fun DashboardScreen(
             }
 
             // =====================================================================
-            // CARRUSEL INTERACTIVO HERO (DESLIZAMIENTO IZQUIERDA / DERECHA)
-            // 0: Patrimonio Neto | 1: Total Proyectado del Mes | 2: Últimos Movimientos
+            // CARRUSEL INTERACTIVO HERO
+            // Página 0: Patrimonio Neto y Proyección juntos
+            // Página 1: Últimos Movimientos Recientes
             // =====================================================================
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -388,275 +389,273 @@ fun DashboardScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) { page ->
                         when (page) {
-                            // PÁGINA 0: PATRIMONIO NETO
+                            // PÁGINA 0: PATRIMONIO NETO Y PROYECCIÓN JUNTOS
                             0 -> {
-                                GlassCard(
-                                    accentGlow = AccentNeon,
-                                    borderColor = AccentNeon.copy(alpha = 0.35f),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = "Patrimonio Neto",
-                                            fontSize = 14.sp,
-                                            color = TextSecondary,
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                        Box(
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(AccentNeon.copy(alpha = 0.15f))
-                                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                                        ) {
-                                            Text(
-                                                text = "ACTUALIZADO",
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = AccentNeon
-                                            )
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.height(8.dp))
-
-                                    Text(
-                                        text = Formatters.formatCurrency(netWorth),
-                                        fontSize = 32.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = TextPrimary
-                                    )
-
-                                    Spacer(modifier = Modifier.height(14.dp))
-
-                                    // Flujo mensual (Ingresos vs Egresos)
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                    ) {
-                                        // Ingresos
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .clip(RoundedCornerShape(12.dp))
-                                                .background(FintechSurface)
-                                                .padding(10.dp)
-                                        ) {
-                                            Column {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Icon(
-                                                        Icons.Default.ArrowDownward,
-                                                        contentDescription = "Ingreso",
-                                                        tint = FintechIncome,
-                                                        modifier = Modifier.size(14.dp)
-                                                    )
-                                                    Spacer(modifier = Modifier.width(4.dp))
-                                                    Text(text = "Ingresos Mes", fontSize = 11.sp, color = TextSecondary)
-                                                }
-                                                Spacer(modifier = Modifier.height(4.dp))
-                                                Text(
-                                                    text = Formatters.formatCurrency(monthlyIncome),
-                                                    fontSize = 14.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = FintechIncome
-                                                )
-                                            }
-                                        }
-
-                                        // Gastos
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .clip(RoundedCornerShape(12.dp))
-                                                .background(FintechSurface)
-                                                .padding(10.dp)
-                                        ) {
-                                            Column {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Icon(
-                                                        Icons.Default.ArrowUpward,
-                                                        contentDescription = "Gasto",
-                                                        tint = FintechExpense,
-                                                        modifier = Modifier.size(14.dp)
-                                                    )
-                                                    Spacer(modifier = Modifier.width(4.dp))
-                                                    Text(text = "Gastos Mes", fontSize = 11.sp, color = TextSecondary)
-                                                }
-                                                Spacer(modifier = Modifier.height(4.dp))
-                                                Text(
-                                                    text = Formatters.formatCurrency(monthlyExpense),
-                                                    fontSize = 14.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = FintechExpense
-                                                )
-                                            }
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.End,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = "Desliza para ver Proyección →",
-                                            fontSize = 10.sp,
-                                            color = TextMuted
-                                        )
-                                    }
-                                }
-                            }
-
-                            // PÁGINA 1: TOTAL PROYECTADO DEL MES (INTERACTIVO -> ABRE CUENTAS POR COBRAR)
-                            1 -> {
-                                GlassCard(
-                                    accentGlow = AccentSecondary,
-                                    borderColor = AccentSecondary.copy(alpha = 0.35f),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable { showReceivablesSubScreen = true }
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Column {
-                                            Text(
-                                                text = "Total Proyectado del Mes",
-                                                fontSize = 13.sp,
-                                                color = TextSecondary,
-                                                fontWeight = FontWeight.Medium
-                                            )
-                                            Text(
-                                                text = Formatters.formatCurrency(projectedMonthlyTotal),
-                                                fontSize = 26.sp,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                color = AccentSecondary
-                                            )
-                                        }
-                                        Box(
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(AccentSecondary.copy(alpha = 0.15f))
-                                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                                        ) {
-                                            Text(
-                                                text = "PROYECCIÓN",
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = AccentSecondary
-                                            )
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.height(10.dp))
-
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                    ) {
-                                        // Dinero en físico
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .clip(RoundedCornerShape(10.dp))
-                                                .background(FintechSurface)
-                                                .padding(10.dp)
-                                        ) {
-                                            Column {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .size(8.dp)
-                                                            .clip(CircleShape)
-                                                            .background(NeonEmerald)
-                                                    )
-                                                    Spacer(modifier = Modifier.width(6.dp))
-                                                    Text("En Físico", fontSize = 11.sp, color = TextSecondary)
-                                                }
-                                                Spacer(modifier = Modifier.height(4.dp))
-                                                Text(
-                                                    text = Formatters.formatCurrency(liquidPhysicalBalance),
-                                                    fontSize = 13.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = NeonEmerald
-                                                )
-                                                Text("Débito y efectivo", fontSize = 9.sp, color = TextMuted)
-                                            }
-                                        }
-
-                                        // Por cobrar
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .clip(RoundedCornerShape(10.dp))
-                                                .background(FintechSurface)
-                                                .padding(10.dp)
-                                        ) {
-                                            Column {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .size(8.dp)
-                                                            .clip(CircleShape)
-                                                            .background(FintechWarning)
-                                                    )
-                                                    Spacer(modifier = Modifier.width(6.dp))
-                                                    Text("Por Cobrar", fontSize = 11.sp, color = TextSecondary)
-                                                }
-                                                Spacer(modifier = Modifier.height(4.dp))
-                                                Text(
-                                                    text = Formatters.formatCurrency(pendingReceivablesTotal),
-                                                    fontSize = 13.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = FintechWarning
-                                                )
-                                                Text("No físico aún", fontSize = 9.sp, color = FintechWarning.copy(alpha = 0.8f))
-                                            }
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.height(10.dp))
-
-                                    // Botón de acceso a Cuentas por Cobrar
-                                    Surface(
-                                        onClick = { showReceivablesSubScreen = true },
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = AccentSecondary.copy(alpha = 0.15f),
-                                        border = BorderStroke(1.dp, AccentSecondary.copy(alpha = 0.35f)),
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    // 1. Tarjeta Patrimonio Neto
+                                    GlassCard(
+                                        accentGlow = AccentNeon,
+                                        borderColor = AccentNeon.copy(alpha = 0.35f),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Row(
-                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.SpaceBetween
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = "Patrimonio Neto",
+                                                fontSize = 14.sp,
+                                                color = TextSecondary,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(AccentNeon.copy(alpha = 0.15f))
+                                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                                            ) {
                                                 Text(
-                                                    text = "📥 Toca aquí para ver Cuentas por Cobrar (${receivables.count { !it.isCollected }} pendientes)",
-                                                    fontSize = 11.sp,
+                                                    text = "ACTUALIZADO",
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = AccentNeon
+                                                )
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(6.dp))
+
+                                        Text(
+                                            text = Formatters.formatCurrency(netWorth),
+                                            fontSize = 28.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = TextPrimary
+                                        )
+
+                                        Spacer(modifier = Modifier.height(10.dp))
+
+                                        // Flujo mensual (Ingresos vs Egresos)
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
+                                            // Ingresos
+                                            Box(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .clip(RoundedCornerShape(10.dp))
+                                                    .background(FintechSurface)
+                                                    .padding(8.dp)
+                                            ) {
+                                                Column {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Icon(
+                                                            Icons.Default.ArrowDownward,
+                                                            contentDescription = "Ingreso",
+                                                            tint = FintechIncome,
+                                                            modifier = Modifier.size(13.dp)
+                                                        )
+                                                        Spacer(modifier = Modifier.width(4.dp))
+                                                        Text(text = "Ingresos Mes", fontSize = 10.sp, color = TextSecondary)
+                                                    }
+                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                    Text(
+                                                        text = Formatters.formatCurrency(monthlyIncome),
+                                                        fontSize = 13.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = FintechIncome
+                                                    )
+                                                }
+                                            }
+
+                                            // Gastos
+                                            Box(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .clip(RoundedCornerShape(10.dp))
+                                                    .background(FintechSurface)
+                                                    .padding(8.dp)
+                                            ) {
+                                                Column {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Icon(
+                                                            Icons.Default.ArrowUpward,
+                                                            contentDescription = "Gasto",
+                                                            tint = FintechExpense,
+                                                            modifier = Modifier.size(13.dp)
+                                                        )
+                                                        Spacer(modifier = Modifier.width(4.dp))
+                                                        Text(text = "Gastos Mes", fontSize = 10.sp, color = TextSecondary)
+                                                    }
+                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                    Text(
+                                                        text = Formatters.formatCurrency(monthlyExpense),
+                                                        fontSize = 13.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = FintechExpense
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // 2. Tarjeta Proyección del Mes (Interactiva -> Cuentas por Cobrar)
+                                    GlassCard(
+                                        accentGlow = AccentSecondary,
+                                        borderColor = AccentSecondary.copy(alpha = 0.35f),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { showReceivablesSubScreen = true }
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column {
+                                                Text(
+                                                    text = "Total Proyectado del Mes",
+                                                    fontSize = 12.sp,
+                                                    color = TextSecondary,
+                                                    fontWeight = FontWeight.Medium
+                                                )
+                                                Text(
+                                                    text = Formatters.formatCurrency(projectedMonthlyTotal),
+                                                    fontSize = 24.sp,
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    color = AccentSecondary
+                                                )
+                                            }
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(AccentSecondary.copy(alpha = 0.15f))
+                                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                                            ) {
+                                                Text(
+                                                    text = "PROYECCIÓN",
+                                                    fontSize = 10.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     color = AccentSecondary
                                                 )
                                             }
-                                            Icon(
-                                                Icons.Default.ArrowForward,
-                                                contentDescription = null,
-                                                tint = AccentSecondary,
-                                                modifier = Modifier.size(14.dp)
+                                        }
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            // Dinero en físico
+                                            Box(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .clip(RoundedCornerShape(10.dp))
+                                                    .background(FintechSurface)
+                                                    .padding(8.dp)
+                                            ) {
+                                                Column {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .size(7.dp)
+                                                                .clip(CircleShape)
+                                                                .background(NeonEmerald)
+                                                        )
+                                                        Spacer(modifier = Modifier.width(5.dp))
+                                                        Text("En Físico", fontSize = 10.sp, color = TextSecondary)
+                                                    }
+                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                    Text(
+                                                        text = Formatters.formatCurrency(liquidPhysicalBalance),
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = NeonEmerald
+                                                    )
+                                                    Text("Débito y efectivo", fontSize = 9.sp, color = TextMuted)
+                                                }
+                                            }
+
+                                            // Por cobrar
+                                            Box(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .clip(RoundedCornerShape(10.dp))
+                                                    .background(FintechSurface)
+                                                    .padding(8.dp)
+                                            ) {
+                                                Column {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .size(7.dp)
+                                                                .clip(CircleShape)
+                                                                .background(FintechWarning)
+                                                        )
+                                                        Spacer(modifier = Modifier.width(5.dp))
+                                                        Text("Por Cobrar", fontSize = 10.sp, color = TextSecondary)
+                                                    }
+                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                    Text(
+                                                        text = Formatters.formatCurrency(pendingReceivablesTotal),
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = FintechWarning
+                                                    )
+                                                    Text("No físico aún", fontSize = 9.sp, color = FintechWarning.copy(alpha = 0.8f))
+                                                }
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        // Botón interactivo a Cuentas por Cobrar
+                                        Surface(
+                                            onClick = { showReceivablesSubScreen = true },
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = AccentSecondary.copy(alpha = 0.15f),
+                                            border = BorderStroke(1.dp, AccentSecondary.copy(alpha = 0.35f)),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Text(
+                                                    text = "📥 Toca aquí para ver Cuentas por Cobrar (${receivables.count { !it.isCollected }} pendientes)",
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = AccentSecondary
+                                                )
+                                                Icon(
+                                                    Icons.Default.ArrowForward,
+                                                    contentDescription = null,
+                                                    tint = AccentSecondary,
+                                                    modifier = Modifier.size(13.dp)
+                                                )
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.End
+                                        ) {
+                                            Text(
+                                                text = "Desliza para ver Movimientos Recientes →",
+                                                fontSize = 10.sp,
+                                                color = TextMuted
                                             )
                                         }
                                     }
                                 }
                             }
 
-                            // PÁGINA 2: ÚLTIMOS MOVIMIENTOS DESLIZABLES
-                            2 -> {
+                            // PÁGINA 1: MOVIMIENTOS RECIENTES
+                            1 -> {
                                 GlassCard(
                                     accentGlow = NeonViolet,
                                     borderColor = NeonViolet.copy(alpha = 0.35f),
@@ -667,14 +666,12 @@ fun DashboardScreen(
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(
-                                                text = "⚡ Últimos Movimientos",
-                                                fontSize = 14.sp,
-                                                color = TextPrimary,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
+                                        Text(
+                                            text = "⚡ Movimientos Recientes",
+                                            fontSize = 14.sp,
+                                            color = TextPrimary,
+                                            fontWeight = FontWeight.Bold
+                                        )
 
                                         Text(
                                             text = "Ver todos (${transactions.size})",
@@ -687,12 +684,12 @@ fun DashboardScreen(
 
                                     Spacer(modifier = Modifier.height(10.dp))
 
-                                    val heroTxList = transactions.take(3)
+                                    val heroTxList = transactions.take(5)
                                     if (heroTxList.isEmpty()) {
                                         Box(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .padding(vertical = 16.dp),
+                                                .padding(vertical = 24.dp),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Text(
@@ -713,7 +710,7 @@ fun DashboardScreen(
                                                         .fillMaxWidth()
                                                         .clip(RoundedCornerShape(8.dp))
                                                         .background(FintechSurface)
-                                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                                        .padding(horizontal = 10.dp, vertical = 7.dp),
                                                     verticalAlignment = Alignment.CenterVertically,
                                                     horizontalArrangement = Arrangement.SpaceBetween
                                                 ) {
@@ -765,14 +762,14 @@ fun DashboardScreen(
                                         }
                                     }
 
-                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Spacer(modifier = Modifier.height(10.dp))
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.Start,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
-                                            text = "← Desliza para volver a Patrimonio",
+                                            text = "← Desliza para volver a Patrimonio & Proyección",
                                             fontSize = 10.sp,
                                             color = TextMuted
                                         )
@@ -782,13 +779,13 @@ fun DashboardScreen(
                         }
                     }
 
-                    // Indicadores tipo píldora del Pager interactivo
+                    // Indicadores tipo píldora del Pager
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        listOf("💰 Patrimonio", "🔮 Proyección", "⚡ Movimientos").forEachIndexed { index, title ->
+                        listOf("💰 Resumen & Proyección", "⚡ Movimientos Recientes").forEachIndexed { index, title ->
                             val isSelected = pagerState.currentPage == index
                             Box(
                                 modifier = Modifier
@@ -798,7 +795,7 @@ fun DashboardScreen(
                                     .clickable {
                                         coroutineScope.launch { pagerState.animateScrollToPage(index) }
                                     }
-                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                                    .padding(horizontal = 12.dp, vertical = 5.dp)
                             ) {
                                 Text(
                                     text = title,
@@ -900,130 +897,6 @@ fun DashboardScreen(
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = TextPrimary
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Sección de Movimientos Recientes Completa
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Movimientos Recientes",
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-                    Text(
-                        text = "Ver todos (${transactions.size})",
-                        fontSize = 12.sp,
-                        color = AccentSecondary,
-                        modifier = Modifier.clickable { onNavigateToTransactions() }
-                    )
-                }
-            }
-
-            val recentTransactions = transactions.take(6)
-            if (recentTransactions.isEmpty()) {
-                item {
-                    GlassCard(modifier = Modifier.fillMaxWidth()) {
-                        Text(
-                            text = "No hay movimientos registrados.",
-                            color = TextMuted,
-                            fontSize = 13.sp
-                        )
-                    }
-                }
-            } else {
-                items(recentTransactions) { tx ->
-                    val isIncome = tx.type == TransactionType.INCOME
-                    val amountColor = if (isIncome) FintechIncome else TextPrimary
-                    val prefix = if (isIncome) "+" else "-"
-
-                    GlassCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        shapeRadius = 14.dp
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(38.dp)
-                                        .clip(CircleShape)
-                                        .background(
-                                            when (tx.type) {
-                                                TransactionType.INCOME -> FintechIncome.copy(alpha = 0.15f)
-                                                TransactionType.EXPENSE -> FintechExpense.copy(alpha = 0.15f)
-                                                TransactionType.TRANSFER -> NeonViolet.copy(alpha = 0.15f)
-                                                TransactionType.CREDIT_CARD_PAYMENT -> NeonCyan.copy(alpha = 0.15f)
-                                            }
-                                        ),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        when (tx.type) {
-                                            TransactionType.INCOME -> Icons.Default.ArrowDownward
-                                            TransactionType.EXPENSE -> Icons.Default.ShoppingBag
-                                            TransactionType.TRANSFER -> Icons.Default.SwapHoriz
-                                            TransactionType.CREDIT_CARD_PAYMENT -> Icons.Default.CreditCard
-                                        },
-                                        contentDescription = tx.type.name,
-                                        tint = when (tx.type) {
-                                            TransactionType.INCOME -> FintechIncome
-                                            TransactionType.EXPENSE -> FintechExpense
-                                            TransactionType.TRANSFER -> NeonViolet
-                                            TransactionType.CREDIT_CARD_PAYMENT -> NeonCyan
-                                        },
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.width(12.dp))
-
-                                Column {
-                                    Text(
-                                        text = tx.title,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = TextPrimary,
-                                        fontSize = 14.sp,
-                                        maxLines = 1
-                                    )
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            text = Formatters.formatDate(tx.timestamp),
-                                            color = TextMuted,
-                                            fontSize = 11.sp
-                                        )
-                                        if (tx.isAutoDetected) {
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text(
-                                                text = "• 🤖 Notificación",
-                                                color = AccentSecondary,
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Medium
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-
-                            Text(
-                                text = "$prefix${Formatters.formatCurrency(tx.amount)}",
-                                fontWeight = FontWeight.Bold,
-                                color = amountColor,
-                                fontSize = 15.sp
                             )
                         }
                     }

@@ -103,9 +103,6 @@ fun MainScreen(
                 onRefreshPermission = {
                     viewModel.checkPermission()
                 },
-                onSimulateNotification = { pkg, title, text ->
-                    viewModel.simulateNotification(pkg, title, text)
-                },
                 modifier = Modifier.padding(paddingValues)
             )
         }

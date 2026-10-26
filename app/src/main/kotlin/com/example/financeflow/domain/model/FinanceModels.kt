@@ -36,6 +36,24 @@ enum class TransactionCategory {
     OTROS
 }
 
+val TransactionCategory.displayName: String
+    get() = when (this) {
+        TransactionCategory.ALIMENTOS_SUPER -> "Alimentos y Super"
+        TransactionCategory.RESTAURANTES_DELIVERY -> "Restaurantes y Delivery"
+        TransactionCategory.TRANSPORTE_GASOLINA -> "Transporte y Gasolina"
+        TransactionCategory.SERVICIOS_HOGAR -> "Servicios del Hogar"
+        TransactionCategory.SALUD_FARMACIA -> "Salud y Farmacia"
+        TransactionCategory.ENTRETENIMIENTO_SUSCRIPCIONES -> "Entretenimiento"
+        TransactionCategory.EDUCACION -> "Educación"
+        TransactionCategory.COMPRAS_SHOPPING -> "Compras y Tiendas"
+        TransactionCategory.NOMINA_SUELDO -> "Nómina y Sueldo"
+        TransactionCategory.TRANSFERENCIA -> "Transferencia"
+        TransactionCategory.PAGO_TARJETA -> "Pago de Tarjeta"
+        TransactionCategory.MSI_COMPRA -> "Compra a MSI"
+        TransactionCategory.CUENTAS_POR_COBRAR -> "Cuentas por Cobrar"
+        TransactionCategory.OTROS -> "Otros"
+    }
+
 @Serializable
 data class AccountPocket(
     val id: String = java.util.UUID.randomUUID().toString(),
@@ -73,13 +91,14 @@ data class Transaction(
     val note: String = "",
     val rawNotificationText: String? = null,
     val isAutoDetected: Boolean = false,
-    val bankName: String? = null
+    val bankName: String? = null,
+    val cardId: String? = null
 )
 
 @Serializable
 data class CreditCard(
     val id: String,
-    val accountId: String,
+    val accountId: String? = null,
     val cardName: String,
     val bank: String,
     val creditLimit: Double,
@@ -187,7 +206,7 @@ enum class CardNetWorthMode {
 // Modelo unificado de Copia de Seguridad Local
 @Serializable
 data class BackupData(
-    val appVersion: String = "1.8",
+    val appVersion: String = "1.9",
     val backupDate: Long = System.currentTimeMillis(),
     val accounts: List<Account> = emptyList(),
     val transactions: List<Transaction> = emptyList(),

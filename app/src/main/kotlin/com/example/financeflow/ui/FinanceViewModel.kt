@@ -50,6 +50,18 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         themePrefs.edit().putString("theme_mode", mode.name).apply()
     }
 
+    init {
+        checkPaymentReminders()
+    }
+
+    fun checkPaymentReminders(context: android.content.Context = getApplication()) {
+        com.example.financeflow.data.notification.PaymentReminderManager.checkAndNotifyDuePayments(
+            context,
+            creditCards.value,
+            billReminders.value
+        )
+    }
+
     fun executeMasterReset() {
         repository.executeMasterReset()
     }
@@ -143,23 +155,26 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun payCreditCard(
-        sourceAccountId: String,
+        sourceAccountId: String?,
         creditCardId: String,
         amount: Double,
         note: String = "Pago a tarjeta"
     ) {
-        val card = creditCards.value.find { it.id == creditCardId } ?: return
-        repository.addTransaction(
-            accountId = sourceAccountId,
-            targetAccountId = card.accountId,
-            title = "Pago ${card.cardName}",
-            amount = amount,
-            type = TransactionType.CREDIT_CARD_PAYMENT,
-            category = TransactionCategory.PAGO_TARJETA,
-            note = note,
-            isAutoDetected = false,
-            bankName = card.bank
-        )
+        repository.payCreditCard(sourceAccountId, creditCardId, amount, note)
+    }
+
+    fun addCardTransaction(
+        cardId: String,
+        title: String,
+        amount: Double,
+        category: TransactionCategory,
+        note: String = ""
+    ) {
+        repository.addCardTransaction(cardId, title, amount, category, note)
+    }
+
+    fun deleteCreditCard(cardId: String) {
+        repository.deleteCreditCard(cardId)
     }
 
     fun addInstallmentPurchase(

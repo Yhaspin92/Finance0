@@ -296,6 +296,7 @@ fun MainScreen(
                     creditCards = creditCards,
                     accounts = accounts,
                     installmentPurchases = installmentPurchases,
+                    transactions = transactions,
                     onAddCard = { name, bank, last4, limit, debt, cutOff, due, linkedAccId, isDebit ->
                         viewModel.addCreditCard(name, bank, last4, limit, debt, cutOff, due, linkedAccId, isDebit)
                     },
@@ -310,6 +311,15 @@ fun MainScreen(
                     },
                     onDeleteInstallmentPurchase = { id ->
                         viewModel.deleteInstallmentPurchase(id)
+                    },
+                    onAddCardTransaction = { cardId, title, amount, category, note ->
+                        viewModel.addCardTransaction(cardId, title, amount, category, note)
+                    },
+                    onDeleteCard = { cardId ->
+                        viewModel.deleteCreditCard(cardId)
+                    },
+                    onDeleteTransaction = { txId ->
+                        viewModel.deleteTransaction(txId)
                     }
                 )
 

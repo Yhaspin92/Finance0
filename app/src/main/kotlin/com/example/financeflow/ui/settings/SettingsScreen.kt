@@ -965,6 +965,44 @@ fun SettingsScreen(
                 }
             }
         }
+
+        // 4.2 Avisos de Pagos de Tarjetas y Servicios
+        item {
+            var remindersCheckedMsg by remember { mutableStateOf<String?>(null) }
+            val context = LocalContext.current
+
+            GlassCard(shapeRadius = 18.dp) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = "🔔 Avisos de Pagos y Servicios", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                        Text(
+                            text = "Avisos automáticos de vencimientos de tarjetas de crédito y pagos de servicios (3 días previos y el día límite).",
+                            fontSize = 11.sp,
+                            color = TextSecondary
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            viewModel.checkPaymentReminders(context)
+                            remindersCheckedMsg = "¡Avisos de pago comprobados exitosamente!"
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = NeonEmerald)
+                    ) {
+                        Text("Verificar", color = FintechBackground, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                }
+
+                if (remindersCheckedMsg != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(text = remindersCheckedMsg!!, fontSize = 11.sp, color = NeonEmerald, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
     }
 
     // ==========================================

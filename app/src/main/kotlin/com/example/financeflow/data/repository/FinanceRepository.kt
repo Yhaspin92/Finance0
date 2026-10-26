@@ -79,7 +79,8 @@ class FinanceRepository private constructor(private val context: Context) {
             try {
                 val content = accountsFile.readText()
                 if (content.isNotBlank()) {
-                    _accounts.value = json.decodeFromString(content)
+                    val rawAccounts: List<Account> = json.decodeFromString(content)
+                    _accounts.value = rawAccounts.filter { it.type != AccountType.CREDIT }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -758,19 +759,9 @@ class FinanceRepository private constructor(private val context: Context) {
         isDebit: Boolean = false,
         colorHex: String = "#FF1744"
     ): CreditCard {
-        val targetAccId = if (!linkedAccountId.isNullOrBlank()) {
-            linkedAccountId
-        } else {
-            val newAcc = addAccount(
-                name = cardName,
-                bankName = bank,
-                type = if (isDebit) AccountType.DEBIT else AccountType.CREDIT,
-                balance = if (isDebit) 0.0 else -currentDebt,
-                last4Digits = last4Digits,
-                colorHex = colorHex
-            )
-            newAcc.id
-        }
+        // La vinculación a una cuenta bancaria/débito es estrictamente opcional.
+        // NUNCA se crea una cuenta bancaria automáticamente para una tarjeta de crédito.
+        val targetAccId = if (!linkedAccountId.isNullOrBlank()) linkedAccountId.trim() else null
 
         val newCard = CreditCard(
             id = UUID.randomUUID().toString(),
@@ -788,6 +779,88 @@ class FinanceRepository private constructor(private val context: Context) {
         _creditCards.value = _creditCards.value + newCard
         saveData()
         return newCard
+    }
+
+    fun payCreditCard(
+        sourceAccountId: String?,
+        creditCardId: String,
+        amount: Double,
+        note: String = "Pago a tarjeta"
+    ) {
+        val card = _creditCards.value.find { it.id == creditCardId } ?: return
+
+        // Si se seleccionó una cuenta de débito de origen, deducir el saldo
+        if (!sourceAccountId.isNullOrBlank()) {
+            val currentAccounts = _accounts.value.toMutableList()
+            val srcIndex = currentAccounts.indexOfFirst { it.id == sourceAccountId }
+            if (srcIndex != -1) {
+                val src = currentAccounts[srcIndex]
+                currentAccounts[srcIndex] = src.copy(balance = src.balance - amount)
+                _accounts.value = currentAccounts
+            }
+        }
+
+        // Reducir la deuda de la tarjeta directamente
+        _creditCards.value = _creditCards.value.map {
+            if (it.id == creditCardId) {
+                it.copy(currentDebt = (it.currentDebt - amount).coerceAtLeast(0.0))
+            } else it
+        }
+
+        // Registrar la transacción de abono/pago a la tarjeta
+        val tx = Transaction(
+            id = UUID.randomUUID().toString(),
+            accountId = sourceAccountId ?: (card.accountId ?: ""),
+            cardId = creditCardId,
+            title = "Pago ${card.cardName}",
+            amount = amount,
+            type = TransactionType.CREDIT_CARD_PAYMENT,
+            category = TransactionCategory.PAGO_TARJETA,
+            timestamp = System.currentTimeMillis(),
+            note = note,
+            bankName = card.bank
+        )
+        _transactions.value = listOf(tx) + _transactions.value
+        saveData()
+    }
+
+    fun addCardTransaction(
+        cardId: String,
+        title: String,
+        amount: Double,
+        category: TransactionCategory,
+        note: String = ""
+    ) {
+        val card = _creditCards.value.find { it.id == cardId } ?: return
+
+        // Aumentar la deuda de la tarjeta de crédito
+        _creditCards.value = _creditCards.value.map {
+            if (it.id == cardId) {
+                it.copy(currentDebt = it.currentDebt + amount)
+            } else it
+        }
+
+        // Registrar la transacción de gasto en la tarjeta
+        val tx = Transaction(
+            id = UUID.randomUUID().toString(),
+            accountId = card.accountId ?: "",
+            cardId = cardId,
+            title = title,
+            amount = amount,
+            type = TransactionType.EXPENSE,
+            category = category,
+            timestamp = System.currentTimeMillis(),
+            note = note,
+            bankName = card.bank
+        )
+        _transactions.value = listOf(tx) + _transactions.value
+        saveData()
+    }
+
+    fun deleteCreditCard(cardId: String) {
+        _creditCards.value = _creditCards.value.filter { it.id != cardId }
+        _installmentPurchases.value = _installmentPurchases.value.filter { it.cardId != cardId }
+        saveData()
     }
 
     // --- Módulo Cuentas por Cobrar (Dinero por recibir en el mes) ---
@@ -996,7 +1069,7 @@ class FinanceRepository private constructor(private val context: Context) {
 
     fun createBackupJson(): String {
         val backup = BackupData(
-            appVersion = "1.8",
+            appVersion = "1.9",
             backupDate = System.currentTimeMillis(),
             accounts = _accounts.value,
             transactions = _transactions.value,

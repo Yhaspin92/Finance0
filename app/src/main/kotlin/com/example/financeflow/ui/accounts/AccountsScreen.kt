@@ -44,9 +44,10 @@ fun AccountsScreen(
     var showAddAccountDialog by remember { mutableStateOf(false) }
     var selectedAccountForDetail by remember { mutableStateOf<Account?>(null) }
 
-    val totalAssets = accounts.filter { it.type != AccountType.CREDIT }.sumOf { it.balance + it.investmentAmount }
-    val totalInPockets = accounts.sumOf { acc -> acc.pockets.sumOf { it.amount } }
-    val totalInvested = accounts.sumOf { it.investmentAmount }
+    val displayAccounts = accounts.filter { it.type != AccountType.CREDIT }
+    val totalAssets = displayAccounts.sumOf { it.balance + it.investmentAmount }
+    val totalInPockets = displayAccounts.sumOf { acc -> acc.pockets.sumOf { it.amount } }
+    val totalInvested = displayAccounts.sumOf { it.investmentAmount }
 
     LazyColumn(
         modifier = modifier
@@ -114,7 +115,7 @@ fun AccountsScreen(
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(
-                            text = "${accounts.size} CUENTAS ACTIVAS",
+                            text = "${displayAccounts.size} CUENTAS ACTIVAS",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             color = AccentNeon
@@ -187,14 +188,14 @@ fun AccountsScreen(
         }
 
         // Lista de Cuentas Bancarias
-        if (accounts.isEmpty()) {
+        if (displayAccounts.isEmpty()) {
             item {
                 GlassCard(modifier = Modifier.fillMaxWidth()) {
                     Text("No hay cuentas bancarias registradas.", color = TextMuted, fontSize = 13.sp)
                 }
             }
         } else {
-            items(accounts) { acc ->
+            items(displayAccounts) { acc ->
                 val linkedCards = creditCards.filter { it.accountId == acc.id }
                 val bankColor = try {
                     Color(android.graphics.Color.parseColor(acc.colorHex))

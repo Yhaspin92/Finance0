@@ -187,7 +187,7 @@ enum class CardNetWorthMode {
 // Modelo unificado de Copia de Seguridad Local
 @Serializable
 data class BackupData(
-    val appVersion: String = "1.7",
+    val appVersion: String = "1.8",
     val backupDate: Long = System.currentTimeMillis(),
     val accounts: List<Account> = emptyList(),
     val transactions: List<Transaction> = emptyList(),

@@ -51,10 +51,6 @@ fun DashboardScreen(
     creditCards: List<CreditCard>,
     receivables: List<AccountReceivable>,
     cardNetWorthMode: CardNetWorthMode = CardNetWorthMode.DEBT,
-    isNotificationPermissionGranted: Boolean,
-    isBannerDismissed: Boolean,
-    onDismissNotificationBanner: () -> Unit,
-    onOpenNotificationSettings: () -> Unit,
     onAddReceivable: (debtorName: String, concept: String, amount: Double, note: String) -> Unit,
     onUpdateReceivable: (receivableId: String, debtorName: String, concept: String, amount: Double, note: String) -> Unit,
     onCollectReceivable: (receivableId: String, targetAccountId: String, amountToCollect: Double, isPartial: Boolean, breakdownItemId: String?) -> Unit,
@@ -370,69 +366,6 @@ fun DashboardScreen(
             contentPadding = PaddingValues(top = 16.dp, bottom = 90.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Banner de Permiso de Notificaciones (si aplica)
-            if (!isNotificationPermissionGranted && !isBannerDismissed) {
-                item {
-                    GlassCard(
-                        accentGlow = FintechWarning,
-                        borderColor = FintechWarning.copy(alpha = 0.5f)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable { onOpenNotificationSettings() }
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(CircleShape)
-                                        .background(FintechWarning.copy(alpha = 0.2f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        Icons.Default.NotificationsActive,
-                                        contentDescription = "Alerta",
-                                        tint = FintechWarning
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column {
-                                    Text(
-                                        text = "Lectura de Notificaciones",
-                                        fontWeight = FontWeight.Bold,
-                                        color = TextPrimary,
-                                        fontSize = 14.sp
-                                    )
-                                    Text(
-                                        text = "Toca para autorizar el lector bancario",
-                                        color = TextSecondary,
-                                        fontSize = 12.sp
-                                    )
-                                }
-                            }
-
-                            IconButton(
-                                onClick = onDismissNotificationBanner,
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.Close,
-                                    contentDescription = "Cerrar banner",
-                                    tint = TextSecondary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
             // =====================================================================
             // CARRUSEL INTERACTIVO HERO
             // Página 0: Patrimonio Neto y Proyección juntos

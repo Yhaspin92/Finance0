@@ -549,107 +549,9 @@ class FinanceRepository private constructor(private val context: Context) {
     }
 
     fun processNotification(packageName: String, title: String, text: String): Boolean {
-        val registeredAccounts = _accounts.value
-        val registeredCards = _creditCards.value
-        val registeredBankNames = (registeredAccounts.map { it.bankName } + registeredCards.map { it.bank })
-            .filter { it.isNotBlank() }
-            .distinct()
-
-        val parsed = BankParserEngine.parse(packageName, title, text, registeredBankNames)
-        val now = System.currentTimeMillis()
-
-        if (parsed == null) {
-            val log = NotificationLog(
-                id = UUID.randomUUID().toString(),
-                packageName = packageName,
-                title = title,
-                content = text,
-                timestamp = now,
-                parsedSuccess = false,
-                failureReason = "No es una notificación de ningún banco reconocido o no contiene monto"
-            )
-            _notificationLogs.value = listOf(log) + _notificationLogs.value
-            saveData()
-            return false
-        }
-
-        // 1. Buscar cuenta coincidente por últimos 4 dígitos
-        var matchedAccount = registeredAccounts.find { acc ->
-            !parsed.accountLast4.isNullOrBlank() && acc.last4Digits == parsed.accountLast4
-        }
-        // 2. Si no coincide por last4, buscar por nombre de banco en cuentas
-        if (matchedAccount == null) {
-            matchedAccount = registeredAccounts.find { acc ->
-                acc.bankName.equals(parsed.bankName, ignoreCase = true) ||
-                (parsed.bankName.isNotBlank() && (acc.bankName.contains(parsed.bankName, ignoreCase = true) || parsed.bankName.contains(acc.bankName, ignoreCase = true)))
-            }
-        }
-        // 3. Buscar si coincide con alguna tarjeta de crédito registrada
-        val matchedCard = registeredCards.find { card ->
-            (!parsed.accountLast4.isNullOrBlank() && card.last4Digits == parsed.accountLast4) ||
-            card.bank.equals(parsed.bankName, ignoreCase = true) ||
-            (parsed.bankName.isNotBlank() && (card.bank.contains(parsed.bankName, ignoreCase = true) || parsed.bankName.contains(card.bank, ignoreCase = true)))
-        }
-        if (matchedAccount == null && matchedCard != null) {
-            matchedAccount = registeredAccounts.find { it.id == matchedCard.accountId }
-                ?: registeredAccounts.firstOrNull { it.type == AccountType.CREDIT }
-                ?: registeredAccounts.firstOrNull()
-        }
-
-        // SI NO COINCIDE CON NINGÚN BANCO O CUENTA DADA DE ALTA POR EL USUARIO:
-        // Se descarta sin crear cuentas falsas o no deseadas
-        if (matchedAccount == null && matchedCard == null) {
-            val log = NotificationLog(
-                id = UUID.randomUUID().toString(),
-                packageName = packageName,
-                title = title,
-                content = text,
-                timestamp = now,
-                parsedSuccess = false,
-                detectedBank = parsed.bankName,
-                detectedAmount = parsed.amount,
-                detectedAccountLast4 = parsed.accountLast4,
-                failureReason = "El banco detectado (${parsed.bankName}) no está dado de alta en tus Cuentas Bancarias de Finance0."
-            )
-            _notificationLogs.value = listOf(log) + _notificationLogs.value
-            saveData()
-            return false
-        }
-
-        val targetAccount = matchedAccount ?: registeredAccounts.firstOrNull()
-        if (targetAccount == null) {
-            return false
-        }
-
-        // Registrar la transacción en la cuenta bancaria del usuario
-        addTransaction(
-            accountId = targetAccount.id,
-            title = parsed.merchantOrConcept,
-            amount = parsed.amount,
-            type = parsed.type,
-            category = parsed.category,
-            timestamp = now,
-            note = "Detectado automáticamente de notificación",
-            rawNotificationText = parsed.rawText,
-            isAutoDetected = true,
-            bankName = parsed.bankName
-        )
-
-        val log = NotificationLog(
-            id = UUID.randomUUID().toString(),
-            packageName = packageName,
-            title = title,
-            content = text,
-            timestamp = now,
-            parsedSuccess = true,
-            detectedBank = parsed.bankName,
-            detectedType = parsed.type,
-            detectedAmount = parsed.amount,
-            detectedAccountLast4 = parsed.accountLast4
-        )
-        _notificationLogs.value = listOf(log) + _notificationLogs.value
-        saveData()
-        return true
+        // En v1.8 las notificaciones automáticas han sido completamente desactivadas.
+        // Todo el registro de finanzas ahora es 100% manual por decisión del usuario.
+        return false
     }
 
     fun addAccount(account: Account) {
@@ -1094,7 +996,7 @@ class FinanceRepository private constructor(private val context: Context) {
 
     fun createBackupJson(): String {
         val backup = BackupData(
-            appVersion = "1.7",
+            appVersion = "1.8",
             backupDate = System.currentTimeMillis(),
             accounts = _accounts.value,
             transactions = _transactions.value,

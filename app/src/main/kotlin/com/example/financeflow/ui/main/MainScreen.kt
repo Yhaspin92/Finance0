@@ -21,14 +21,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.financeflow.data.notification.BankNotificationListenerService
 import com.example.financeflow.data.updater.UpdateState
 import com.example.financeflow.ui.FinanceViewModel
 import com.example.financeflow.ui.calendar.CalendarScreen
 import com.example.financeflow.ui.cards.CardsScreen
 import com.example.financeflow.ui.components.QuickActionDialog
 import com.example.financeflow.ui.dashboard.DashboardScreen
-import com.example.financeflow.ui.notification.NotificationMonitorScreen
 import com.example.financeflow.ui.theme.*
 import com.example.financeflow.ui.transactions.TransactionsScreen
 
@@ -49,7 +47,6 @@ fun MainScreen(
     var currentTab by remember { mutableStateOf(AppTab.RESUMEN) }
     var showQuickActionDialog by remember { mutableStateOf(false) }
     var showSettingsScreen by remember { mutableStateOf(false) }
-    var showNotificationScreen by remember { mutableStateOf(false) }
 
     var showCalculatorDialog by remember { mutableStateOf(false) }
 
@@ -59,7 +56,6 @@ fun MainScreen(
     val installmentPurchases by viewModel.installmentPurchases.collectAsStateWithLifecycle()
     val billReminders by viewModel.billReminders.collectAsStateWithLifecycle()
     val payrollConfig by viewModel.payrollConfig.collectAsStateWithLifecycle()
-    val notificationLogs by viewModel.notificationLogs.collectAsStateWithLifecycle()
     val receivables by viewModel.receivables.collectAsStateWithLifecycle()
     val netWorth by viewModel.netWorth.collectAsStateWithLifecycle()
     val monthlyIncome by viewModel.monthlyIncome.collectAsStateWithLifecycle()
@@ -67,8 +63,6 @@ fun MainScreen(
     val liquidPhysicalBalance by viewModel.liquidPhysicalBalance.collectAsStateWithLifecycle()
     val pendingReceivablesTotal by viewModel.pendingReceivablesTotal.collectAsStateWithLifecycle()
     val projectedMonthlyTotal by viewModel.projectedMonthlyTotal.collectAsStateWithLifecycle()
-    val isNotificationPermissionGranted by viewModel.isNotificationPermissionGranted.collectAsStateWithLifecycle()
-    val isBannerDismissed by viewModel.isBannerDismissed.collectAsStateWithLifecycle()
     val updateState by viewModel.updateState.collectAsStateWithLifecycle()
     val cardNetWorthMode by viewModel.cardNetWorthMode.collectAsStateWithLifecycle()
 
@@ -77,36 +71,6 @@ fun MainScreen(
             viewModel = viewModel,
             onBack = { showSettingsScreen = false }
         )
-    } else if (showNotificationScreen) {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = {
-                        Column {
-                            Text("Monitor de Notificaciones", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                            Text("Lector automático y auditoría de bancos", fontSize = 11.sp, color = TextSecondary)
-                        }
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = { showNotificationScreen = false }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Regresar", tint = TextPrimary)
-                        }
-                    }
-                )
-            }
-        ) { paddingValues ->
-            NotificationMonitorScreen(
-                isPermissionGranted = isNotificationPermissionGranted,
-                notificationLogs = notificationLogs,
-                onOpenSettings = {
-                    BankNotificationListenerService.openNotificationAccessSettings(context)
-                },
-                onRefreshPermission = {
-                    viewModel.checkPermission()
-                },
-                modifier = Modifier.padding(paddingValues)
-            )
-        }
     } else {
         Scaffold(
             topBar = {
@@ -136,7 +100,7 @@ fun MainScreen(
                                     color = TextPrimary
                                 )
                                 Text(
-                                    text = "Finanzas & Notificaciones",
+                                    text = "Control de Finanzas Personales",
                                     fontSize = 11.sp,
                                     color = NeonEmerald,
                                     fontWeight = FontWeight.Medium
@@ -145,26 +109,6 @@ fun MainScreen(
                         }
                     },
                     actions = {
-                        // Botón de Monitor de Notificaciones (Lector bancario)
-                        IconButton(onClick = { showNotificationScreen = true }) {
-                            BadgedBox(
-                                badge = {
-                                    if (!isNotificationPermissionGranted) {
-                                        Badge(containerColor = FintechWarning) {
-                                            Text("!", color = FintechBackground, fontWeight = FontWeight.Bold)
-                                        }
-                                    }
-                                }
-                            ) {
-                                Icon(
-                                    Icons.Default.Notifications,
-                                    contentDescription = "Notificaciones Bancarias",
-                                    tint = if (!isNotificationPermissionGranted) FintechWarning else NeonCyan,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                        }
-
                         // Botón de Calculadora Funcional
                         IconButton(onClick = { showCalculatorDialog = true }) {
                             Icon(
@@ -304,12 +248,6 @@ fun MainScreen(
                     creditCards = creditCards,
                     receivables = receivables,
                     cardNetWorthMode = cardNetWorthMode,
-                    isNotificationPermissionGranted = isNotificationPermissionGranted,
-                    isBannerDismissed = isBannerDismissed,
-                    onDismissNotificationBanner = { viewModel.dismissNotificationBanner() },
-                    onOpenNotificationSettings = {
-                        BankNotificationListenerService.openNotificationAccessSettings(context)
-                    },
                     onAddReceivable = { debtor, concept, amount, note ->
                         viewModel.addReceivable(debtor, concept, amount, note = note)
                     },

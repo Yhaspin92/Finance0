@@ -23,17 +23,6 @@
             </intent-filter>
         </activity>
 
-        <!-- Servicio de escucha de notificaciones de bancos / fintechs -->
-        <service
-            android:name=".data.notification.BankNotificationListenerService"
-            android:label="@string/notification_service_name"
-            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.service.notification.NotificationListenerService" />
-            </intent-filter>
-        </service>
-
         <!-- FileProvider para instalación de actualizaciones OTA desde GitHub -->
         <provider
             android:name="androidx.core.content.FileProvider"

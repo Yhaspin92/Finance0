@@ -3,7 +3,6 @@ package com.example.financeflow.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.financeflow.data.notification.BankNotificationListenerService
 import com.example.financeflow.data.repository.FinanceRepository
 import com.example.financeflow.data.updater.GitHubUpdateManager
 import com.example.financeflow.data.updater.UpdateState
@@ -33,15 +32,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     val installmentPurchases: StateFlow<List<InstallmentPurchase>> = repository.installmentPurchases
     val billReminders: StateFlow<List<BillReminder>> = repository.billReminders
     val payrollConfig: StateFlow<PayrollConfig> = repository.payrollConfig
-    val notificationLogs: StateFlow<List<NotificationLog>> = repository.notificationLogs
     val receivables: StateFlow<List<AccountReceivable>> = repository.receivables
-
-    private val _isBannerDismissed = MutableStateFlow(false)
-    val isBannerDismissed: StateFlow<Boolean> = _isBannerDismissed.asStateFlow()
-
-    fun dismissNotificationBanner() {
-        _isBannerDismissed.value = true
-    }
 
     private val themePrefs = application.getSharedPreferences("finance0_theme_prefs", android.content.Context.MODE_PRIVATE)
     private val initialTheme = try {
@@ -62,9 +53,6 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     fun executeMasterReset() {
         repository.executeMasterReset()
     }
-
-    private val _isNotificationPermissionGranted = MutableStateFlow(false)
-    val isNotificationPermissionGranted: StateFlow<Boolean> = _isNotificationPermissionGranted.asStateFlow()
 
     private val _updateState = MutableStateFlow<UpdateState>(UpdateState.Idle)
     val updateState: StateFlow<UpdateState> = _updateState.asStateFlow()
@@ -131,15 +119,6 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         physical + pending
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
-    init {
-        checkPermission()
-    }
-
-    fun checkPermission() {
-        _isNotificationPermissionGranted.value =
-            BankNotificationListenerService.isNotificationAccessGranted(getApplication())
-    }
-
     fun addManualTransaction(
         accountId: String,
         targetAccountId: String? = null,
@@ -205,10 +184,6 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
     fun deleteInstallmentPurchase(installmentId: String) {
         repository.deleteInstallmentPurchase(installmentId)
-    }
-
-    fun simulateNotification(packageName: String, title: String, text: String): Boolean {
-        return repository.processNotification(packageName, title, text)
     }
 
     fun toggleBillPaid(billId: String) {

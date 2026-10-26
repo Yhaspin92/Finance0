@@ -11,34 +11,9 @@ import android.util.Log
 import com.example.financeflow.data.repository.FinanceRepository
 
 class BankNotificationListenerService : NotificationListenerService() {
-
-    private val tag = "BankNotifyService"
-
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
-        super.onNotificationPosted(sbn)
-        if (sbn == null) return
-
-        val packageName = sbn.packageName ?: return
-        val extras = sbn.notification?.extras ?: return
-
-        val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: ""
-        val text = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()
-            ?: extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
-            ?: ""
-
-        if (title.isBlank() && text.isBlank()) return
-
-        Log.d(tag, "Notification received from [$packageName]: $title - $text")
-
-        // Filtrar notificaciones propias de la app para no crear bucles
-        if (packageName == applicationContext.packageName) return
-
-        try {
-            val repository = FinanceRepository.getInstance(applicationContext)
-            repository.processNotification(packageName, title, text)
-        } catch (e: Exception) {
-            Log.e(tag, "Error processing notification: ${e.message}", e)
-        }
+        // En v1.8 las notificaciones automáticas están completamente desactivadas.
+        // Todo el registro de finanzas es 100% manual.
     }
 
     companion object {

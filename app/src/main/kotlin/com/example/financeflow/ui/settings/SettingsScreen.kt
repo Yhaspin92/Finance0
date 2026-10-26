@@ -24,7 +24,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.financeflow.data.notification.BankNotificationListenerService
 import com.example.financeflow.data.updater.UpdateState
 import com.example.financeflow.ui.FinanceViewModel
 import com.example.financeflow.ui.components.GlassCard
@@ -50,7 +49,6 @@ fun SettingsScreen(
     val updateState by viewModel.updateState.collectAsState()
     val payrollConfig by viewModel.payrollConfig.collectAsState()
     val accounts by viewModel.accounts.collectAsState()
-    val isNotificationPermissionGranted by viewModel.isNotificationPermissionGranted.collectAsState()
     val isAutoBackupEnabled by viewModel.isAutoBackupEnabled.collectAsState()
     val autoBackupFrequency by viewModel.autoBackupFrequency.collectAsState()
     val autoBackupTime by viewModel.autoBackupTime.collectAsState()
@@ -803,99 +801,13 @@ fun SettingsScreen(
                 color = TextPrimary
             )
             Text(
-                text = "Permisos de notificaciones y actualizaciones del motor",
+                text = "Actualizaciones del motor y repositorio",
                 fontSize = 12.sp,
                 color = TextSecondary
             )
         }
 
-        // 4.1 Permiso de Lector de Notificaciones Bancarias
-        item {
-            GlassCard(
-                borderColor = if (isNotificationPermissionGranted) NeonEmerald.copy(alpha = 0.4f) else FintechWarning.copy(alpha = 0.5f),
-                accentGlow = if (isNotificationPermissionGranted) NeonEmerald else FintechWarning,
-                shapeRadius = 18.dp
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(CircleShape)
-                                .background(if (isNotificationPermissionGranted) NeonEmerald.copy(alpha = 0.2f) else FintechWarning.copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                if (isNotificationPermissionGranted) Icons.Default.CheckCircle else Icons.Default.Warning,
-                                contentDescription = "Estado",
-                                tint = if (isNotificationPermissionGranted) NeonEmerald else FintechWarning
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.width(12.dp))
-
-                        Column {
-                            Text(
-                                text = "Lector de Notificaciones Bancarias",
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimary,
-                                fontSize = 15.sp
-                            )
-                            Text(
-                                text = if (isNotificationPermissionGranted)
-                                    "Servicio activo: detecta cargos y depósitos de bancos en vivo."
-                                else
-                                    "Requiere autorización en Ajustes de Android para leer transacciones.",
-                                color = TextSecondary,
-                                fontSize = 11.sp
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Button(
-                        onClick = {
-                            BankNotificationListenerService.openNotificationAccessSettings(context)
-                        },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isNotificationPermissionGranted) FintechSurface else NeonEmerald
-                        )
-                    ) {
-                        Icon(Icons.Default.Settings, contentDescription = "Ajustes", modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = if (isNotificationPermissionGranted) "Configurar en Android" else "Activar Permiso",
-                            fontWeight = FontWeight.Bold,
-                            color = if (isNotificationPermissionGranted) TextPrimary else FintechBackground,
-                            fontSize = 12.sp
-                        )
-                    }
-
-                    OutlinedButton(
-                        onClick = { viewModel.checkPermission() },
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonCyan)
-                    ) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Actualizar", modifier = Modifier.size(16.dp))
-                    }
-                }
-            }
-        }
-
-        // 4.2 Actualizaciones del Motor (GitHub OTA)
+        // 4.1 Actualizaciones del Motor (GitHub OTA)
         item {
             GlassCard(shapeRadius = 18.dp) {
                 Row(
